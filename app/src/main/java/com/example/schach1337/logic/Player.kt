@@ -8,8 +8,8 @@ enum class Player {
 
 class PlayerExtensions{
     companion object {
-        fun opponent(player : Player) {
-            when(player) {
+        fun opponent(player : Player) : Player {
+            return when(player) {
                 Player.White -> Player.Black
                 Player.Black -> Player.White
                 else -> Player.None

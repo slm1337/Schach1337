@@ -41,4 +41,8 @@ class Position{
         return result
     }
 
+    operator fun plus(dir : Direction) : Position{
+        return Position(row + dir.rowDelta, column + dir.columnDelta)
+    }
+
 }

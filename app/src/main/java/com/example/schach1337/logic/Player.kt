@@ -4,15 +4,13 @@ enum class Player {
     None,
     White,
     Black;
-}
 
-class PlayerExtensions{
     companion object {
         fun opponent(player : Player) : Player {
             return when(player) {
-                Player.White -> Player.Black
-                Player.Black -> Player.White
-                else -> Player.None
+                White -> Black
+                Black -> White
+                else -> None
             }
         }
     }

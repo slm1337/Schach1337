@@ -4,8 +4,7 @@ import com.example.schach1337.logic.moves.Move
 
 class GameState {
     var board : Board
-    var currentPlayer : Player
-        private set
+    private var currentPlayer : Player
 
     constructor(player : Player, board : Board){
         currentPlayer = player
@@ -14,7 +13,7 @@ class GameState {
 
     fun legalMovesForPiece(pos : Position): Sequence<Move>? {
         if(board.isEmpty(pos) || board[pos]?.color != currentPlayer){
-            return emptySequence<Move>()
+            return emptySequence()
         }
 
         val piece = board[pos]

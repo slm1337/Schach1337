@@ -62,6 +62,27 @@ class Board {
         return this[pos] == null
     }
 
+    fun piecePositions() : Sequence<Position> = sequence{
+        for(r in 0..7){
+            for(c in 0..7){
+                val pos = Position(r, c)
 
+                if(!isEmpty(pos)){
+                    yield(pos)
+                }
+            }
+        }
+    }
+
+    fun piecePositionsFor(player : Player) : Sequence<Position>{
+        return piecePositions().filter { pos -> this[pos]?.color == player }
+    }
+
+    fun isInCheck(player : Player) : Boolean {
+        return piecePositionsFor(Player.opponent(player)).any { pos ->
+            val piece = this[pos]
+            return piece?.canCaptureOpponentKing(pos, this) == true
+        }
+    }
 
 }

@@ -55,4 +55,11 @@ class King : Piece {
         }
     }
 
+    override fun canCaptureOpponentKing(from: Position, board: Board): Boolean {
+        return movePositions(from, board).any { to ->
+            val piece = board[to]
+            piece != null && piece.type == PieceType.King
+        }
+    }
+
 }

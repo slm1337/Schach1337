@@ -40,4 +40,11 @@ abstract class Piece {
         return dirs.asSequence().flatMap { dir -> movePositionsInDir(from, board, dir) }
     }
 
+    open fun canCaptureOpponentKing(from : Position, board : Board) : Boolean{
+        return getMoves(from, board).any{move ->
+            val piece = board[move.toPos]
+            piece != null && piece.type == PieceType.King
+        }
+    }
+
 }

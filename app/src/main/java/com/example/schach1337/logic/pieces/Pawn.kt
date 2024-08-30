@@ -64,9 +64,6 @@ class Pawn : Piece {
         }
     }
 
-
-
-
     private fun canCaptureAt(pos : Position, board : Board) : Boolean{
         if(!Board.isInside(pos) || board.isEmpty(pos)){
             return false
@@ -75,7 +72,11 @@ class Pawn : Piece {
         return board[pos]!!.color != color
     }
 
-
-
+    override fun canCaptureOpponentKing(from: Position, board: Board): Boolean {
+        return diagonalMoves(from, board).any { move ->
+            val piece = board[move.toPos]
+            piece != null && piece.type == PieceType.King
+        }
+    }
 
 }

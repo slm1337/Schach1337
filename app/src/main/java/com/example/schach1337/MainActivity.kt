@@ -1,7 +1,6 @@
 package com.example.schach1337
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.MotionEvent
@@ -19,13 +18,9 @@ import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.pieces.Piece
 
-
-fun Int.toDp(context: Context): Int {
-    return (this * context.resources.displayMetrics.density).toInt()
-}
-
 class MainActivity : AppCompatActivity() {
     private val gameState : GameState = GameState(Player.White, Board.initial())
+    private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
     private var selectedPos : Position? = null
 
@@ -37,18 +32,20 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun drawActivity(board : Board) {
         val constraintLayout = ConstraintLayout(this)
-        val tableLayout : TableLayout = initialBoard(board)
 
+        val tableLayout : TableLayout = initialBoard(board)
+        tableLayout.setBackgroundResource(R.drawable.board)
+        
         val layoutParams = ConstraintLayout.LayoutParams(
-            ConstraintLayout.LayoutParams.MATCH_PARENT,
-            ConstraintLayout.LayoutParams.MATCH_PARENT
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
         ).apply {
             leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID
             topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             rightToRight = ConstraintLayout.LayoutParams.PARENT_ID
             bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            dimensionRatio = "1:1"
         }
-        layoutParams.setMargins(0, 120.toDp(this), 0, 120.toDp(this))
 
         tableLayout.layoutParams = layoutParams
 
@@ -67,7 +64,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun initialBoard(board : Board) : TableLayout{
         val tableLayout = TableLayout(this)
-        tableLayout.setBackgroundResource(R.drawable.board)
+
+        UIboard = Array(8) { arrayOfNulls<ImageView>(8) }
 
         for(r in 0..7){
             val tableRow = TableRow(this)
@@ -82,6 +80,8 @@ class MainActivity : AppCompatActivity() {
                 else{
                     imageView.setImageDrawable(loadSourceDrawable(Images.getImage(piece)))
                 }
+
+                UIboard[r][c] = imageView
 
                 tableRow.addView(
                     imageView, TableRow.LayoutParams(
@@ -105,7 +105,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadSourceDrawable(drawableKey: Int?) : Drawable? {
-        return ResourcesCompat.getDrawable(resources, drawableKey ?: R.drawable.ic_launcher_background, null)
+        return ResourcesCompat.getDrawable(resources,
+            drawableKey ?: R.drawable.ic_highlight_green, null)
     }
 
     private fun cacheMoves(moves : Sequence<Move>){
@@ -117,13 +118,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun boardMousedown(view: View, x: Float, y: Float) {
-        val squareSizeWeight : Double = (view.width / 8).toDouble()
-        val squareSizeHeight : Double = (view.height / 8).toDouble()
+        val squareSize : Double = (view.width / 8).toDouble()
 
-        val row : Int = ((y.toInt() - 571) / squareSizeHeight).toInt() // TODO: 571 - magic number
-        val col : Int = (x.toInt() / squareSizeWeight).toInt()
+        val viewLocation = IntArray(2)
+        view.getLocationOnScreen(viewLocation)
+        val yLocView= viewLocation[1].toFloat()
+
+        val row : Int = ((y.toInt() - yLocView) / squareSize).toInt()
+        val col : Int = (x.toInt() / squareSize).toInt()
         val pos = Position(row, col)
-
 
         if(selectedPos == null){
             onFromPositionSelected(pos)
@@ -138,14 +141,16 @@ class MainActivity : AppCompatActivity() {
         if(moves.any()){
             selectedPos = pos
             cacheMoves(moves)
+            showHighlights()
         }
     }
-
 
     private fun onTopPositionSelected(pos : Position){
         selectedPos = null
 
         val move = moveCache[pos]
+        hideHighlights()
+
         if(move != null){
             handleMove(move)
         }
@@ -153,8 +158,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleMove(move : Move){
         gameState.makeMove(move)
-        drawActivity(gameState.board)       // TODO: полная отрисовка активити с нуля
+        val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
+        val newPos = UIboard[move.toPos.row][move.toPos.column]
+
+        newPos?.setImageDrawable(oldPos?.drawable)
+        oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
     }
 
+    private fun showHighlights(){
+        for(to in moveCache.keys){
+            val piece : Piece? = gameState.board[to.row, to.column]
+            val img : ImageView? = UIboard[to.row][to.column]
 
+            if(piece != null){
+                img?.setBackgroundResource(R.drawable.ic_highlight_red)
+            } else {
+                img?.setBackgroundResource(R.drawable.ic_highlight_green)
+            }
+        }
+    }
+
+    private fun hideHighlights(){
+        for(r in 0..7){
+            for(c in 0..7){
+                val img = UIboard[r][c]
+                img?.setBackgroundResource(0)
+            }
+        }
+    }
 }

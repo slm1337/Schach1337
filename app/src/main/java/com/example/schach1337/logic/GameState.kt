@@ -17,7 +17,8 @@ class GameState {
         }
 
         val piece = board[pos]
-        return piece?.getMoves(pos, board)
+        val moveCandidates : Sequence<Move>? = piece?.getMoves(pos, board)
+        return moveCandidates?.filter {move -> move.isLegal(board)}
     }
 
     fun makeMove(move : Move){

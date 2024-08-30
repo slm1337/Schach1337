@@ -56,6 +56,13 @@ class Board {
             this[1, c] = Pawn(Player.Black)
             this[6, c] = Pawn(Player.White)
         }
+
+//        this[4, 5] = Rook(Player.Black)
+//        this[0, 4] = King(Player.Black)
+//        this[7, 4] = King(Player.White)
+//        this[7, 3] = Queen(Player.White)
+
+
     }
 
     fun isEmpty(pos : Position): Boolean {
@@ -78,11 +85,21 @@ class Board {
         return piecePositions().filter { pos -> this[pos]?.color == player }
     }
 
-    fun isInCheck(player : Player) : Boolean {
+    fun isInCheck(player: Player): Boolean {
         return piecePositionsFor(Player.opponent(player)).any { pos ->
             val piece = this[pos]
-            return piece?.canCaptureOpponentKing(pos, this) == true
+            piece?.canCaptureOpponentKing(pos, this) == true
         }
+    }
+
+    fun copy() : Board {
+        val copy = Board()
+
+        for(pos in piecePositions()){
+            copy[pos] = this[pos]?.copy()
+        }
+
+        return copy
     }
 
 }

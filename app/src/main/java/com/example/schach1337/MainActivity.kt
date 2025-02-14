@@ -10,13 +10,17 @@ import android.widget.TableLayout
 import android.widget.TableRow
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.EndReason
 import com.example.schach1337.logic.GameState
+import com.example.schach1337.logic.MoveType
+import com.example.schach1337.logic.PieceType
 import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.moves.Move
+import com.example.schach1337.logic.moves.PawnPromotion
 import com.example.schach1337.logic.pieces.Piece
 
 class MainActivity : AppCompatActivity() {
@@ -153,8 +157,31 @@ class MainActivity : AppCompatActivity() {
         hideHighlights()
 
         if(move != null){
-            handleMove(move)
+            if(move.type == MoveType.PawnPromotion){
+                handlePromotion(move.fromPos, move.toPos)
+            } else {
+                handleMove(move)
+            }
         }
+    }
+
+    private fun handlePromotion(from : Position, to : Position){
+        val oldPos = UIboard[to.row][to.column]
+        val newPos = UIboard[from.row][from.column]
+
+        val pawnPromotionsMenu = PawnPromotionsMenu(this)
+
+        pawnPromotionsMenu.setOnPromotionSelected { selectedPiece ->
+            val promPieceResId : Int? = Images.getImage(gameState.currentPlayer, selectedPiece)
+            val promPieceDrawable = promPieceResId?.let { ContextCompat.getDrawable(this, it) }
+            newPos?.setImageDrawable(promPieceDrawable)
+            oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+
+            val promMove = PawnPromotion(from, to, selectedPiece)
+            handleMove(promMove)
+        }
+
+        pawnPromotionsMenu.show()
     }
 
     private fun handleMove(move : Move){

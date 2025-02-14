@@ -58,10 +58,13 @@ class Board {
 //        }
 
 
-        this[4, 4] = King(Player.Black)
-        this[7, 4] = King(Player.White)
-        this[5, 3] = Queen(Player.Black)
+//        this[4, 4] = King(Player.Black)
+//        this[7, 4] = King(Player.White)
+//        this[5, 3] = Queen(Player.Black)
 
+          this[4, 4] = King(Player.Black)
+          this[7, 4] = King(Player.White)
+          this[1,6] = Pawn(Player.White)
 
     }
 

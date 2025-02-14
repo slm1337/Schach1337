@@ -7,6 +7,7 @@ import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.moves.NormalMove
+import com.example.schach1337.logic.moves.PawnPromotion
 
 class Pawn : Piece {
     override var type: PieceType = PieceType.Pawn
@@ -40,11 +41,27 @@ class Pawn : Piece {
         return forwardMoves(from, board).plus(diagonalMoves(from, board))
     }
 
+    private fun promotionMoves(from: Position, to : Position): Sequence<Move> = sequence {
+        yield(PawnPromotion(from, to, PieceType.Queen))
+        yield(PawnPromotion(from, to, PieceType.Knight))
+        yield(PawnPromotion(from, to, PieceType.Bishop))
+        yield(PawnPromotion(from, to, PieceType.Rook))
+    }
+
     private fun forwardMoves(from: Position, board: Board): Sequence<Move> = sequence {
         val oneMovePos = from + forward
 
         if (canMoveTo(oneMovePos, board)) {
-            yield(NormalMove(from, oneMovePos))
+
+            if(oneMovePos.row == 0 || oneMovePos.row == 7){
+                for(promMove : Move in promotionMoves(from, oneMovePos)){
+                    yield(promMove)
+                }
+            }
+            else
+            {
+                yield(NormalMove(from, oneMovePos))
+            }
 
             val twoMovesPos = oneMovePos + forward
 
@@ -59,7 +76,15 @@ class Pawn : Piece {
             val to = from + forward + dir
 
             if (canCaptureAt(to, board)) {
-                yield(NormalMove(from, to))
+                if(to.row == 0 || to.row == 7){
+                    for(promMove : Move in promotionMoves(from, to)){
+                        yield(promMove)
+                    }
+                }
+                else
+                {
+                    yield(NormalMove(from, to))
+                }
             }
         }
     }
@@ -78,5 +103,7 @@ class Pawn : Piece {
             piece != null && piece.type == PieceType.King
         }
     }
+
+
 
 }

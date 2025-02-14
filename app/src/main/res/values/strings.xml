@@ -2,4 +2,5 @@
     <string name="app_name">Schach1337</string>
     <string name="Restart">Restart</string>
     <string name="Analyze">Analyze</string>
+    <string name="select_a_piece">Select a piece</string>
 </resources>

@@ -4,7 +4,7 @@ import com.example.schach1337.logic.moves.Move
 
 class GameState {
     var board : Board
-    private var currentPlayer : Player
+    var currentPlayer : Player
     var result : Result? = null
 
     constructor(player : Player, board : Board){

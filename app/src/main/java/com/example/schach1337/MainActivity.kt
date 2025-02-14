@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.res.ResourcesCompat
 import com.example.schach1337.logic.Board
+import com.example.schach1337.logic.EndReason
 import com.example.schach1337.logic.GameState
 import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
@@ -19,7 +20,7 @@ import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.pieces.Piece
 
 class MainActivity : AppCompatActivity() {
-    private val gameState : GameState = GameState(Player.White, Board.initial())
+    private var gameState : GameState = GameState(Player.White, Board.initial())
     private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
     private var selectedPos : Position? = null
@@ -163,6 +164,10 @@ class MainActivity : AppCompatActivity() {
 
         newPos?.setImageDrawable(oldPos?.drawable)
         oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+
+        if(gameState.isGameOver()){
+            showGameOver()
+        }
     }
 
     private fun showHighlights(){
@@ -185,5 +190,66 @@ class MainActivity : AppCompatActivity() {
                 img?.setBackgroundResource(0)
             }
         }
+    }
+
+    fun getWinnerText(winner : Player) : String{
+        return when(winner){
+            Player.White -> "WHITE WINS!"
+            Player.Black -> "BLACK WINS!"
+            else -> "IT'S A DRAW"
+        }
+    }
+
+    fun PlayerString(player : Player) : String{
+        return when(player){
+            Player.White -> "WHITE"
+            Player.Black -> "BLACK"
+            else -> ""
+        }
+
+    }
+
+    fun getReasonText(reason : EndReason, currentPlayer : Player) : String{
+        return when(reason){
+            EndReason.Stalemate -> "STALEMATE - ${PlayerString(currentPlayer)} CAN'T MOVE"
+            EndReason.Checkmate -> "CHECKMATE - ${PlayerString(currentPlayer)} CAN'T MOVE"
+            EndReason.FiftyMoveRule -> "FIFTY-MOVE RULE"
+            EndReason.InsufficientMaterial -> "INSUFFICIENT MATERIAL"
+            EndReason.ThreefoldRepetition -> "THREEFOLD REPETITION"
+        }
+    }
+
+    private fun showGameOver(){
+        val gameOverMenu = GameOverMenu(this)
+        val result = gameState.result!!
+        gameOverMenu.setWinnerText(getWinnerText(result.winner))
+        gameOverMenu.setReasonText(getReasonText(result.reason, gameState.currentPlayer))
+        gameOverMenu.show()
+
+        gameOverMenu.setRestart(object : GameOverMenu.RestartClick{
+            override fun onRestartClick() {
+                gameOverMenu.cancel()
+                restartGame()
+            }
+        })
+
+        gameOverMenu.setClose(object : GameOverMenu.CloseClick{
+            override fun onCloseClick() {
+                gameOverMenu.cancel()
+            }
+        })
+
+        gameOverMenu.setAnalyze(object : GameOverMenu.AnalyzeClick{
+            override fun onAnalyzeClick() {
+                TODO("Not yet implemented")
+            }
+        })
+    }
+
+    private fun restartGame(){
+        hideHighlights()
+        moveCache.clear()
+        gameState = GameState(Player.White, Board.initial())
+        drawActivity(gameState.board)
     }
 }

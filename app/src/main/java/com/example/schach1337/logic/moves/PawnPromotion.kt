@@ -33,13 +33,14 @@ class PawnPromotion : Move{
         }
     }
 
-    override fun execute(board: Board) {
-        val pawn : Piece = board[fromPos] ?: return
+    override fun execute(board: Board) : Boolean {
+        val pawn : Piece = board[fromPos]!!
         board[fromPos] = null
 
         val promotionPiece = createPromotionPiece(pawn.color)
         promotionPiece.hasMoved = true
         board[toPos] = promotionPiece
+        return true
     }
 
 }

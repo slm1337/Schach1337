@@ -31,9 +31,10 @@ class Castle : Move {
         }
     }
 
-    override fun execute(board: Board) {
+    override fun execute(board: Board) : Boolean {
         NormalMove(fromPos, toPos).execute(board)
         NormalMove(rookFromPos, rookToPos).execute(board)
+        return false
     }
 
     override fun isLegal(board: Board): Boolean {

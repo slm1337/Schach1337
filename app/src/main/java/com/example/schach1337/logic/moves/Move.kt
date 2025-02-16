@@ -10,7 +10,7 @@ abstract class Move {
     abstract var fromPos : Position
     abstract var toPos : Position
 
-    abstract fun execute(board : Board)
+    abstract fun execute(board : Board) : Boolean
 
     open fun isLegal(board : Board): Boolean {
         val player : Player? = board[fromPos]?.color

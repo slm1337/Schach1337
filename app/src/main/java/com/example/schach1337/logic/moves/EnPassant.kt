@@ -19,8 +19,9 @@ class EnPassant : Move {
         capturePos = Position(from.row, to.column)
     }
 
-    override fun execute(board : Board) {
+    override fun execute(board : Board) : Boolean {
         NormalMove(fromPos, toPos).execute(board)
         board[capturePos] = null
+        return true
     }
 }

@@ -6,6 +6,7 @@ class GameState {
     var board : Board
     var currentPlayer : Player
     var result : Result? = null
+    private var noCaptureOrPawnMove : Int = 0
 
     constructor(player : Player, board : Board){
         currentPlayer = player
@@ -24,7 +25,14 @@ class GameState {
 
     fun makeMove(move : Move){
         board.setPawnSkipPosition(currentPlayer, null)
-        move.execute(board)
+        val captureOrPawn : Boolean = move.execute(board)
+
+        if(captureOrPawn){
+            noCaptureOrPawnMove = 0
+        } else {
+            noCaptureOrPawnMove++;
+        }
+
         currentPlayer = Player.opponent(currentPlayer)
         checkForGameOver()
     }
@@ -47,6 +55,8 @@ class GameState {
             }
         } else if(board.insifficientMaterial()){
             result = Result.draw(EndReason.InsufficientMaterial)
+        } else if(FiftyMoveRule()){
+            result = Result.draw(EndReason.FiftyMoveRule)
         }
     }
 
@@ -54,4 +64,8 @@ class GameState {
         return result != null
     }
 
+    private fun FiftyMoveRule() : Boolean{
+        val fullMoves : Int = noCaptureOrPawnMove / 2
+        return fullMoves == 50;
+    }
 }

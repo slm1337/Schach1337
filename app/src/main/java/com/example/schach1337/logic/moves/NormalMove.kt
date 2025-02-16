@@ -2,6 +2,7 @@ package com.example.schach1337.logic.moves
 
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.MoveType
+import com.example.schach1337.logic.PieceType
 import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.pieces.Piece
 
@@ -15,11 +16,13 @@ class NormalMove : Move {
         toPos = to
     }
 
-    override fun execute(board: Board) {
-        val piece : Piece = board[fromPos] ?: return
+    override fun execute(board: Board) : Boolean {
+        val piece : Piece? = board[fromPos]
+        val capture = !board.isEmpty(toPos)
         board[toPos] = piece
         board[fromPos] = null
-        piece.hasMoved = true
+        piece?.hasMoved = true
+        return capture || piece?.type == PieceType.Pawn
     }
 
 }

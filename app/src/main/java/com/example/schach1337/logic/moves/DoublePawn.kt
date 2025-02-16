@@ -17,10 +17,11 @@ class DoublePawn : Move {
         skippedPos = Position((from.row + to.row) / 2, from.column)
     }
 
-    override fun execute(board: Board) {
+    override fun execute(board: Board) : Boolean {
         val player = board[fromPos]!!.color
         board.setPawnSkipPosition(player, skippedPos)
         NormalMove(fromPos, toPos).execute(board)
+        return true
     }
 
 }

@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleMove(move : Move){
         gameState.makeMove(move)
 
-        if(move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
+        if(move.type == MoveType.EnPassant || move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
             drawActivity(gameState.board)
         } else{
             val oldPos = UIboard[move.fromPos.row][move.fromPos.column]

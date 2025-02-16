@@ -4,6 +4,10 @@ import com.example.schach1337.logic.pieces.*
 
 class Board {
     private val pieces = Array(8) { Array<Piece?>(8) { null } }
+    private val pawnSkipPositions: MutableMap<Player, Position?> = mutableMapOf(
+        Player.White to null,
+        Player.Black to null
+    )
 
     operator fun get(row: Int, col: Int): Piece? {
         return pieces[row][col]
@@ -19,6 +23,14 @@ class Board {
 
     operator fun set(pos: Position, value: Piece?) {
         this[pos.row, pos.column] = value
+    }
+
+    fun getPawnSkipPosition(player : Player) : Position? {
+        return pawnSkipPositions[player]
+    }
+
+    fun setPawnSkipPosition(player : Player, pos : Position?) {
+        pawnSkipPositions[player] = pos
     }
 
     companion object{

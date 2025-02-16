@@ -5,6 +5,8 @@ import com.example.schach1337.logic.Direction
 import com.example.schach1337.logic.PieceType
 import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
+import com.example.schach1337.logic.moves.DoublePawn
+import com.example.schach1337.logic.moves.EnPassant
 import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.moves.NormalMove
 import com.example.schach1337.logic.moves.PawnPromotion
@@ -66,7 +68,7 @@ class Pawn : Piece {
             val twoMovesPos = oneMovePos + forward
 
             if (!hasMoved && canMoveTo(twoMovesPos, board)) {
-                yield(NormalMove(from, twoMovesPos))
+                yield(DoublePawn(from, twoMovesPos))
             }
         }
     }
@@ -75,7 +77,10 @@ class Pawn : Piece {
         for (dir in listOf(Direction.West, Direction.East)) {
             val to = from + forward + dir
 
-            if (canCaptureAt(to, board)) {
+            val opponent : Player = Player.opponent(color)
+            if(to == board.getPawnSkipPosition(opponent)){
+                yield(EnPassant(from, to))
+            } else if (canCaptureAt(to, board)) {
                 if(to.row == 0 || to.row == 7){
                     for(promMove : Move in promotionMoves(from, to)){
                         yield(promMove)

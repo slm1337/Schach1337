@@ -23,6 +23,7 @@ class GameState {
     }
 
     fun makeMove(move : Move){
+        board.setPawnSkipPosition(currentPlayer, null)
         move.execute(board)
         currentPlayer = Player.opponent(currentPlayer)
         checkForGameOver()

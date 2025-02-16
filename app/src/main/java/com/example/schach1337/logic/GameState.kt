@@ -45,6 +45,8 @@ class GameState {
             } else{
                 result = Result.draw(EndReason.Stalemate)
             }
+        } else if(board.insifficientMaterial()){
+            result = Result.draw(EndReason.InsufficientMaterial)
         }
     }
 

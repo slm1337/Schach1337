@@ -43,6 +43,18 @@ class Board {
         fun isInside(pos : Position) : Boolean{
             return pos.row in 0..7 && pos.column in 0..7
         }
+
+        private fun isKingVKing(counting: Counting) : Boolean{
+            return counting.totalCount == 2
+        }
+
+        private fun isKingBishopVKing(counting: Counting) : Boolean{
+            return counting.totalCount == 3 && (counting.white(PieceType.Bishop) == 1 || counting.black(PieceType.Bishop) == 1)
+        }
+
+        private fun isKingKnightVKing(counting: Counting) : Boolean{
+            return counting.totalCount == 3 && (counting.white(PieceType.Knight) == 1 || counting.black(PieceType.Knight) == 1)
+        }
     }
 
     private fun addStartPieces(){
@@ -106,6 +118,45 @@ class Board {
         }
 
         return copy
+    }
+
+    fun countPieces() : Counting{
+        val counting = Counting()
+
+        for(pos : Position in piecePositions()){
+            val piece = this[pos]!!
+            counting.increment(piece.color, piece.type)
+        }
+
+        return counting
+    }
+
+    fun insifficientMaterial() : Boolean{
+        val counting = countPieces()
+
+        return isKingVKing(counting) || isKingBishopVKing(counting) ||
+                isKingKnightVKing(counting) || isKingBishopVKingBishop(counting)
+    }
+
+    private fun findPiece(color : Player, type : PieceType) : Position{
+        return piecePositionsFor(color).first{ pos ->
+            this[pos]?.type == type
+        }
+    }
+
+    private fun isKingBishopVKingBishop(counting: Counting) : Boolean{
+        if (counting.totalCount != 4){
+            return false
+        }
+
+        if(counting.white(PieceType.Bishop) != 1 || counting.black(PieceType.Bishop) != 1){
+            return false
+        }
+
+        val wBishopPos : Position = findPiece(Player.White, PieceType.Bishop)
+        val bBishopPos : Position = findPiece(Player.Black, PieceType.Bishop)
+
+        return wBishopPos.squareColor() == bBishopPos.squareColor()
     }
 
 }

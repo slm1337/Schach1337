@@ -2,9 +2,11 @@ package com.example.schach1337.logic.pieces
 
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.Direction
+import com.example.schach1337.logic.MoveType
 import com.example.schach1337.logic.PieceType
 import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
+import com.example.schach1337.logic.moves.Castle
 import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.moves.NormalMove
 
@@ -27,6 +29,39 @@ class King : Piece {
             Direction.SouthWest,
             Direction.SouthEast
         )
+
+        private fun isUnmovedRook(pos : Position, board : Board) : Boolean{
+            if(board.isEmpty(pos)) {
+                return false
+            }
+
+            val piece = board[pos];
+            return piece?.type == PieceType.Rook && !piece.hasMoved
+        }
+
+        private fun allEmpty(positions : Sequence<Position>, board : Board) : Boolean{
+            return positions.all {pos -> board.isEmpty(pos)}
+        }
+    }
+
+    private fun canCastleKingSide(from : Position, board : Board) : Boolean{
+        if(hasMoved){
+            return false
+        }
+
+        val rookPos = Position(from.row, 7)
+        val betweenPositions = sequenceOf(Position(from.row, 5), Position(from.row, 6))
+        return isUnmovedRook(rookPos, board) && allEmpty(betweenPositions, board)
+    }
+
+    private fun canCastleQueenSide(from : Position, board : Board) : Boolean{
+        if(hasMoved){
+            return false
+        }
+
+        val rookPos = Position(from.row, 0)
+        val betweenPositions = sequenceOf(Position(from.row, 1), Position(from.row, 2), Position(from.row, 3))
+        return isUnmovedRook(rookPos, board) && allEmpty(betweenPositions, board)
     }
 
     override fun copy(): Piece {
@@ -38,6 +73,14 @@ class King : Piece {
     override fun getMoves(from: Position, board: Board): Sequence<Move> = sequence{
         for(to in movePositions(from, board)){
             yield(NormalMove(from, to))
+        }
+
+        if(canCastleKingSide(from, board)){
+            yield (Castle(MoveType.CastleKS, from))
+        }
+
+        if(canCastleQueenSide(from, board)){
+            yield (Castle(MoveType.CastleQS, from))
         }
     }
 

@@ -152,12 +152,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun onTopPositionSelected(pos : Position){
         selectedPos = null
-
-        val move = moveCache[pos]
         hideHighlights()
 
-        if(move != null){
-            if(move.type == MoveType.PawnPromotion){
+        moveCache[pos]?.let { move ->
+            if (move.type == MoveType.PawnPromotion) {
                 handlePromotion(move.fromPos, move.toPos)
             } else {
                 handleMove(move)
@@ -186,11 +184,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleMove(move : Move){
         gameState.makeMove(move)
-        val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
-        val newPos = UIboard[move.toPos.row][move.toPos.column]
 
-        newPos?.setImageDrawable(oldPos?.drawable)
-        oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+        if(move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
+            drawActivity(gameState.board)
+        } else{
+            val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
+            val newPos = UIboard[move.toPos.row][move.toPos.column]
+
+            newPos?.setImageDrawable(oldPos?.drawable)
+            oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+        }
 
         if(gameState.isGameOver()){
             showGameOver()

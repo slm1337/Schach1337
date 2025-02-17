@@ -1,5 +1,6 @@
 package com.example.schach1337.logic
 
+import com.example.schach1337.logic.moves.EnPassant
 import com.example.schach1337.logic.pieces.*
 
 class Board {
@@ -158,5 +159,63 @@ class Board {
 
         return wBishopPos.squareColor() == bBishopPos.squareColor()
     }
+
+    private fun isUnmovedKingAndRook(kingPos : Position, rookPos : Position) : Boolean{
+        if(isEmpty(kingPos) || isEmpty(rookPos)){
+            return false
+        }
+
+        val king = this[kingPos]!!
+        val rook = this[rookPos]!!
+
+        return king.type == PieceType.King && rook.type == PieceType.Rook &&
+                !king.hasMoved && !rook.hasMoved
+    }
+
+    fun castleRightKS(player : Player) : Boolean{
+        return when(player){
+            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7,7))
+            Player.Black -> isUnmovedKingAndRook(Position(0, 4), Position(0, 7))
+            else -> false
+        }
+    }
+
+    fun castleRightQS(player : Player) : Boolean{
+        return when(player){
+            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7,0))
+            Player.Black -> isUnmovedKingAndRook(Position(0, 4), Position(0, 0))
+            else -> false
+        }
+    }
+
+    private fun hasPawnInPosition(player: Player, pawnPositions: Array<Position>, skipPos: Position): Boolean {
+        for (pos in pawnPositions.filter { isInside(it) }) {
+            val piece = this[pos] ?: continue
+
+            if (piece.color != player || piece.type != PieceType.Pawn) {
+                continue
+            }
+
+            val move = EnPassant(pos, skipPos)
+            if (move.isLegal(this)) {
+                return true
+            }
+        }
+        return false
+    }
+
+
+    fun canCaptureEnPassant(player: Player): Boolean {
+        val skipPos = getPawnSkipPosition(Player.opponent(player)) ?: return false
+
+        val pawnPositions = when (player) {
+            Player.White -> arrayOf(skipPos + Direction.SouthWest + Direction.SouthEast)
+            Player.Black -> arrayOf(skipPos + Direction.NorthWest + Direction.NorthEast)
+            else -> emptyArray()
+        }
+
+        return hasPawnInPosition(player, pawnPositions, skipPos)
+    }
+
 
 }

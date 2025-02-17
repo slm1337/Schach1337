@@ -7,10 +7,15 @@ class GameState {
     var currentPlayer : Player
     var result : Result? = null
     private var noCaptureOrPawnMove : Int = 0
+    private lateinit var stateString : String
+    private val stateHistory : MutableMap<String, Int> = mutableMapOf()
 
     constructor(player : Player, board : Board){
         currentPlayer = player
         this.board = board
+
+        stateString = StateString(currentPlayer, board).toString()
+        stateHistory[stateString] = 1
     }
 
     fun legalMovesForPiece(pos : Position): Sequence<Move>? {
@@ -29,11 +34,13 @@ class GameState {
 
         if(captureOrPawn){
             noCaptureOrPawnMove = 0
+            stateHistory.clear()
         } else {
             noCaptureOrPawnMove++;
         }
 
         currentPlayer = Player.opponent(currentPlayer)
+        updateStateString()
         checkForGameOver()
     }
 
@@ -58,6 +65,9 @@ class GameState {
         } else if(FiftyMoveRule()){
             result = Result.draw(EndReason.FiftyMoveRule)
         }
+        else if(threefoldRepetition()){
+            result = Result.draw(EndReason.ThreefoldRepetition)
+        }
     }
 
     fun isGameOver () : Boolean{
@@ -67,5 +77,15 @@ class GameState {
     private fun FiftyMoveRule() : Boolean{
         val fullMoves : Int = noCaptureOrPawnMove / 2
         return fullMoves == 50;
+    }
+
+    private fun updateStateString() {
+        stateString = StateString(currentPlayer, board).toString()
+
+        stateHistory[stateString] = stateHistory.getOrDefault(stateString, 0) + 1
+    }
+
+    private fun threefoldRepetition() : Boolean{
+        return stateHistory[stateString] == 3
     }
 }

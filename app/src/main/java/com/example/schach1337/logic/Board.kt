@@ -59,29 +59,62 @@ class Board {
     }
 
     private fun addStartPieces(){
-//        this[0, 0] = Rook(Player.Black)
+        this[0, 0] = Rook(Player.Black)
         this[0, 1] = Knight(Player.Black)
         this[0, 2] = Bishop(Player.Black)
-//        this[0, 3] = Queen(Player.Black)
+        this[0, 3] = Queen(Player.Black)
         this[0, 4] = King(Player.Black)
-//        this[0, 5] = Bishop(Player.Black)
-//        this[0, 6] = Knight(Player.Black)
-//        this[0, 7] = Rook(Player.Black)
-//
-//        this[7, 0] = Rook(Player.White)
-//        this[7, 1] = Knight(Player.White)
-//        this[7, 2] = Bishop(Player.White)
-//        this[7, 3] = Queen(Player.White)
+        this[0, 5] = Bishop(Player.Black)
+        this[0, 6] = Knight(Player.Black)
+        this[0, 7] = Rook(Player.Black)
+
+        this[7, 0] = Rook(Player.White)
+        this[7, 1] = Knight(Player.White)
+        this[7, 2] = Bishop(Player.White)
+        this[7, 3] = Queen(Player.White)
         this[7, 4] = King(Player.White)
-//        this[7, 5] = Bishop(Player.White)
-//        this[7, 6] = Knight(Player.White)
-//        this[7, 7] = Rook(Player.White)
+        this[7, 5] = Bishop(Player.White)
+        this[7, 6] = Knight(Player.White)
+        this[7, 7] = Rook(Player.White)
 
-//        for(c in 0..7){
-//            this[1, c] = Pawn(Player.Black)
-//            this[6, c] = Pawn(Player.White)
-//        }
+        for(c in 0..7){
+            this[1, c] = Pawn(Player.Black)
+            this[6, c] = Pawn(Player.White)
+        }
+    }
 
+    private fun addStartPieces(fen: String) {
+        clearBoard()
+
+        val pieceMap = mapOf(
+            'p' to { Pawn(Player.Black) }, 'r' to { Rook(Player.Black) },
+            'n' to { Knight(Player.Black) }, 'b' to { Bishop(Player.Black) },
+            'q' to { Queen(Player.Black) }, 'k' to { King(Player.Black) },
+            'P' to { Pawn(Player.White) }, 'R' to { Rook(Player.White) },
+            'N' to { Knight(Player.White) }, 'B' to { Bishop(Player.White) },
+            'Q' to { Queen(Player.White) }, 'K' to { King(Player.White) }
+        )
+
+        val rows = fen.split(" ")[0].split("/")
+        for ((rowIndex, row) in rows.withIndex()) {
+            var col = 0
+            for (char in row) {
+                if (char.isDigit()) {
+                    col += char.digitToInt()
+                } else {
+                    this[rowIndex, col] = pieceMap[char]?.invoke()
+                    col++
+                }
+            }
+        }
+    }
+
+    private fun clearBoard() {
+        for (r in 0..7) {
+            for (c in 0..7) {
+                this[r, c] = null
+            }
+        }
     }
 
     fun isEmpty(pos : Position): Boolean {

@@ -7,7 +7,7 @@ class GameState {
     var currentPlayer : Player
     var result : Result? = null
     private var noCaptureOrPawnMove : Int = 0
-    private lateinit var stateString : String
+    lateinit var stateString : String
     private val stateHistory : MutableMap<String, Int> = mutableMapOf()
 
     constructor(player : Player, board : Board){
@@ -81,6 +81,11 @@ class GameState {
 
     private fun updateStateString() {
         stateString = StateString(currentPlayer, board).toString()
+
+        //val engine = StockfishEngine()
+        //val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        //val bestMove = engine.analyzePosition(fen)
+        //println("Best move: $bestMove")
 
         stateHistory[stateString] = stateHistory.getOrDefault(stateString, 0) + 1
     }

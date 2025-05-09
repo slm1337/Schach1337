@@ -16,7 +16,6 @@ import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.EndReason
 import com.example.schach1337.logic.GameState
 import com.example.schach1337.logic.MoveType
-import com.example.schach1337.logic.PieceType
 import com.example.schach1337.logic.Player
 import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.moves.Move
@@ -28,10 +27,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
     private var selectedPos : Position? = null
+    private var gameVsEngine : Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        StockfishEngine.initialize(this@MainActivity)
         super.onCreate(savedInstanceState)
         drawActivity(gameState.board)
+    }
+
+    override fun onDestroy() {
+        StockfishEngine.close()
+        super.onDestroy()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -137,7 +143,32 @@ class MainActivity : AppCompatActivity() {
             onFromPositionSelected(pos)
         }else{
             onTopPositionSelected(pos)
+            moveCache[pos]?.let {
+                val handler = android.os.Handler()
+                handler.postDelayed({
+                    makeAnOpponentMove()
+                }, 1)
+            }
         }
+    }
+
+    private fun makeAnOpponentMove(){
+        if(!gameVsEngine){
+            return;
+        }
+
+        val bestMove = StockfishEngine.getBestMove(gameState.stateString)
+
+        val fromCol = bestMove[0] - 'a'
+        val fromRow = 8 - (bestMove[1] - '0')
+        val toCol = bestMove[2] - 'a'
+        val toRow = 8 - (bestMove[3] - '0')
+
+        val fromPos = Position(fromRow, fromCol)
+        val toPos = Position(toRow, toCol)
+
+        onFromPositionSelected(fromPos)
+        onTopPositionSelected(toPos)
     }
 
     private fun onFromPositionSelected(pos : Position){

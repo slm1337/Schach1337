@@ -23,7 +23,6 @@ class PawnPromotionsMenu(context : Context) : Dialog(context){
         binding = PawnPromotionsMenuLayoutBinding.inflate(li)
         setContentView(binding!!.root)
 
-        // Устанавливаем ширину диалога равной 80% экрана
         window?.setLayout(
             (context.resources.displayMetrics.widthPixels * 0.9).toInt(),
             ViewGroup.LayoutParams.WRAP_CONTENT

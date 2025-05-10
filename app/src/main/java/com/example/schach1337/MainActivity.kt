@@ -17,6 +17,7 @@ import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.EndReason
+import com.example.schach1337.logic.FenUtils
 import com.example.schach1337.logic.GameState
 import com.example.schach1337.logic.MoveType
 import com.example.schach1337.logic.Player
@@ -214,6 +215,25 @@ class MainActivity : AppCompatActivity() {
         onTopPositionSelected(toPos)
     }
 
+    private fun makeAnOpponentMove(fen : String){
+        if(!gameVsEngine){
+            return;
+        }
+
+        val bestMove = StockfishEngine.getBestMove(fen)
+
+        val fromCol = bestMove[0] - 'a'
+        val fromRow = 8 - (bestMove[1] - '0')
+        val toCol = bestMove[2] - 'a'
+        val toRow = 8 - (bestMove[3] - '0')
+
+        val fromPos = Position(fromRow, fromCol)
+        val toPos = Position(toRow, toCol)
+
+        onFromPositionSelected(fromPos)
+        onTopPositionSelected(toPos)
+    }
+
     private fun onFromPositionSelected(pos : Position){
         val moves : Sequence<Move> = gameState.legalMovesForPiece(pos) ?: return
 
@@ -353,8 +373,72 @@ class MainActivity : AppCompatActivity() {
     private fun restartGame(){
         hideHighlights()
         moveCache.clear()
-        gameState = GameState(Player.White, Board.initial())
+
+        val dialog = PlayChessMenu()
+        dialog.listener = object : PlayChessMenu.OnSettingsConfirmedListener {
+            override fun onSettingsConfirmed(
+                playAsWhite: Boolean,
+                isLevel : Boolean, eloOrLevelLimitValue: Int,
+                isTime: Boolean, DepthOrTimeLimitValue: Int,
+                startPos: String
+            ) {
+                startGameWithSettings(playAsWhite, isLevel, eloOrLevelLimitValue, isTime, DepthOrTimeLimitValue, startPos)
+
+            }
+        }
+        dialog.show(supportFragmentManager, "PlayChessMenu")
+
+
+    }
+
+    private fun startGameWithSettings(playAsWhite: Boolean,
+                                      isLevel : Boolean, eloOrLevelLimitValue: Int,
+                                      isTime: Boolean, depthOrTimeLimitValue: Int,
+                                      startPos: String) {
+
+        val player : Player = if(playAsWhite){
+            Player.White
+        } else {
+            Player.Black
+        }
+
+        if(isLevel){
+            StockfishEngine.skillLevel = eloOrLevelLimitValue
+            StockfishEngine.skillElo = null
+        } else {
+            StockfishEngine.skillElo = eloOrLevelLimitValue
+            StockfishEngine.skillLevel = null
+        }
+
+        if (isTime){
+            StockfishEngine.searchTime = depthOrTimeLimitValue
+            StockfishEngine.depth = null
+        } else {
+            StockfishEngine.depth = depthOrTimeLimitValue
+            StockfishEngine.searchTime = null
+        }
+
+        StockfishEngine.applyEngineSettings()
+
+        var startPosition = startPos;
+        if (!FenUtils.isValidFEN(startPos)) {
+            startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        }
+        val board : Board = Board.initial(startPosition)
+
+        gameState = GameState(
+            if (FenUtils.isValidFEN(startPosition) && FenUtils.currentPlayer(startPosition) != player)
+                Player.opponent(player) else player,
+            board
+        )
+
         drawBoard(gameState.board)
+
+        if (FenUtils.isValidFEN(startPosition) && FenUtils.currentPlayer(startPosition) != player) {
+            android.os.Handler().postDelayed({
+                makeAnOpponentMove(startPosition)
+            }, 100)
+        }
     }
 
     private fun openAnalyzeGameWindow() {

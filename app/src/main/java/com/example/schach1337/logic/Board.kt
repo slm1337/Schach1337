@@ -41,6 +41,12 @@ class Board {
             return board
         }
 
+        fun initial(fen: String) : Board{
+            val board = Board()
+            board.addStartPieces(fen)
+            return board
+        }
+
         fun isInside(pos : Position) : Boolean{
             return pos.row in 0..7 && pos.column in 0..7
         }
@@ -84,6 +90,11 @@ class Board {
     }
 
     private fun addStartPieces(fen: String) {
+        if(fen == ""){
+            addStartPieces()
+            return
+        }
+
         clearBoard()
 
         val pieceMap = mapOf(

@@ -12,7 +12,10 @@ object StockfishEngine {
 
     var depth: Int? = 12
     var searchTime: Int? = null
-    var skillLevel: Int? = 1
+
+    var skillElo: Int? = null
+    var skillLevel: Int? = 20
+
     var numThreads: Int = 1
 
     fun initialize(context: Context) {
@@ -27,12 +30,27 @@ object StockfishEngine {
             reader = BufferedReader(InputStreamReader(process?.inputStream))
 
             sendCommand("uci")
-            //skillLevel?.let { setUciOption("Skill Level", it.toString()) } ?: setUciOption("Skill Level", "20")
-            setUciOption("Threads", numThreads.toString())
+
+            applyEngineSettings();
+
             isInitialized = true
         } catch (e: IOException) {
             e.printStackTrace()
         }
+    }
+
+    fun applyEngineSettings() {
+
+        if(skillLevel != null){
+            setUciOption("UCI_LimitStrength", "false")
+            setUciOption("Skill Level", skillLevel.toString())
+        } else {
+            setUciOption("Skill Level", "20")
+            setUciOption("UCI_LimitStrength", "true")
+            setUciOption("UCI_Elo", skillElo.toString())
+        }
+
+        setUciOption("Threads", numThreads.toString())
     }
 
     private fun setUciOption(name: String, value: String) {
@@ -82,7 +100,7 @@ object StockfishEngine {
         when {
             depth != null -> sendCommand("go depth $depth")
             searchTime != null -> sendCommand("go movetime $searchTime")
-            else -> sendCommand("go depth 10") // Значение по умолчанию
+            else -> sendCommand("go depth 10")
         }
 
         var eval: Float? = null

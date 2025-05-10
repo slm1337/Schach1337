@@ -5,4 +5,14 @@
     <string name="select_a_piece">Select a piece</string>
     <string name="open">open</string>
     <string name="close">close</string>
+    <string name="play_as">Play As</string>
+    <string name="engine_settings">Engine Settings</string>
+    <string name="limit_strength">Limit Strength</string>
+    <string name="elo">Elo</string>
+    <string name="skill">Skill</string>
+    <string name="depth_time_limit">Depth / Time limit</string>
+    <string name="depth">Depth</string>
+    <string name="time">Time</string>
+    <string name="start_position">Start Position</string>
+    <string name="start_game">Start Game</string>
 </resources>

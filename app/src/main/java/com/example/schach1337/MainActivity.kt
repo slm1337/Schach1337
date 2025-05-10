@@ -5,13 +5,16 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TableLayout
 import android.widget.TableRow
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.EndReason
 import com.example.schach1337.logic.GameState
@@ -21,8 +24,13 @@ import com.example.schach1337.logic.Position
 import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.moves.PawnPromotion
 import com.example.schach1337.logic.pieces.Piece
+import com.google.android.material.navigation.NavigationView
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var navView: NavigationView
+    private lateinit var menuButton: ImageButton
+
     private var gameState : GameState = GameState(Player.White, Board.initial())
     private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
@@ -32,7 +40,50 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         StockfishEngine.initialize(this@MainActivity)
         super.onCreate(savedInstanceState)
-        drawActivity(gameState.board)
+        setContentView(R.layout.activity_main)
+
+        drawerLayout = findViewById(R.id.drawer_layout)
+        navView = findViewById(R.id.nav_view)
+        menuButton = findViewById(R.id.menu_button)
+
+        menuButton.setOnClickListener {
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
+
+        navView.setNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.play_chess -> {
+                    gameVsEngine = true
+                    restartGame()
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+
+                R.id.analyze_board -> {
+                    gameVsEngine = false
+                    restartGame()
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+
+                R.id.analyze_game -> {
+                    gameVsEngine = false
+                    openAnalyzeGameWindow();
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+
+                R.id.settings -> {
+                    openSettings();
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+
+                else -> false
+            }
+        }
+
+        drawBoard(gameState.board)
     }
 
     override fun onDestroy() {
@@ -41,23 +92,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun drawActivity(board : Board) {
-        val constraintLayout = ConstraintLayout(this)
-
-        val tableLayout : TableLayout = initialBoard(board)
+    private fun drawBoard(board: Board) {
+        val tableLayout: TableLayout = initialBoard(board)
         tableLayout.setBackgroundResource(R.drawable.board)
-        
-        val layoutParams = ConstraintLayout.LayoutParams(
-            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-        ).apply {
-            leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID
-            topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            rightToRight = ConstraintLayout.LayoutParams.PARENT_ID
-            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            dimensionRatio = "1:1"
-        }
 
+        val layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
         tableLayout.layoutParams = layoutParams
 
         tableLayout.setOnTouchListener { view, event ->
@@ -69,8 +111,9 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        constraintLayout.addView(tableLayout)
-        setContentView(constraintLayout)
+        val container = findViewById<FrameLayout>(R.id.chessboard_container)
+        container.removeAllViews()
+        container.addView(tableLayout)
     }
 
     private fun initialBoard(board : Board) : TableLayout{
@@ -217,7 +260,7 @@ class MainActivity : AppCompatActivity() {
         gameState.makeMove(move)
 
         if(move.type == MoveType.EnPassant || move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
-            drawActivity(gameState.board)
+            drawBoard(gameState.board)
         } else{
             val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
             val newPos = UIboard[move.toPos.row][move.toPos.column]
@@ -311,6 +354,14 @@ class MainActivity : AppCompatActivity() {
         hideHighlights()
         moveCache.clear()
         gameState = GameState(Player.White, Board.initial())
-        drawActivity(gameState.board)
+        drawBoard(gameState.board)
+    }
+
+    private fun openAnalyzeGameWindow() {
+        return
+    }
+
+    private fun openSettings() {
+        return
     }
 }

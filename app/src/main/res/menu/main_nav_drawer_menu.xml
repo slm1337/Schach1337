@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item android:id="@+id/play_chess"
+            android:title="Play Chess">
+        </item>
+
+        <item android:id="@+id/analyze_board"
+            android:title="Board for analyze">
+        </item>
+
+        <item android:id="@+id/analyze_game"
+            android:title="Game analysis">
+        </item>
+
+        <item android:id="@+id/settings"
+            android:title="Settings">
+        </item>
+
+    </group>
+</menu>

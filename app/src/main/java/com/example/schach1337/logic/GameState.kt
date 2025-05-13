@@ -10,12 +10,17 @@ class GameState {
     lateinit var stateString : String
     private val stateHistory : MutableMap<String, Int> = mutableMapOf()
 
+    var gameHistoryFENs: MutableList<String> = mutableListOf()
+    var gameHistory: MutableList<String> = mutableListOf()
+
     constructor(player : Player, board : Board){
         currentPlayer = player
         this.board = board
 
         stateString = StateString(currentPlayer, board).toString()
         stateHistory[stateString] = 1
+        gameHistoryFENs.add(stateString)
+        gameHistory.add(" ")
     }
 
     fun legalMovesForPiece(pos : Position): Sequence<Move>? {
@@ -82,10 +87,10 @@ class GameState {
     private fun updateStateString() {
         stateString = StateString(currentPlayer, board).toString()
 
-        //val engine = StockfishEngine()
-        //val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        //val bestMove = engine.analyzePosition(fen)
-        //println("Best move: $bestMove")
+
+        gameHistoryFENs.add(stateString)
+        val move = FenUtils.getMoveFromFENs(gameHistoryFENs[gameHistoryFENs.size-2], gameHistoryFENs[gameHistoryFENs.size-1])!!
+        gameHistory.add(move)
 
         stateHistory[stateString] = stateHistory.getOrDefault(stateString, 0) + 1
     }
@@ -93,4 +98,10 @@ class GameState {
     private fun threefoldRepetition() : Boolean{
         return stateHistory[stateString] == 3
     }
+
+    fun clearHistory(){
+        gameHistoryFENs.clear()
+        gameHistory.clear()
+    }
+
 }

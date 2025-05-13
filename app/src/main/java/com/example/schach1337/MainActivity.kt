@@ -5,16 +5,22 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TableLayout
 import android.widget.TableRow
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.schach1337.logic.Board
 import com.example.schach1337.logic.EndReason
 import com.example.schach1337.logic.FenUtils
@@ -26,11 +32,21 @@ import com.example.schach1337.logic.moves.Move
 import com.example.schach1337.logic.moves.PawnPromotion
 import com.example.schach1337.logic.pieces.Piece
 import com.google.android.material.navigation.NavigationView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var navView: NavigationView
     private lateinit var menuButton: ImageButton
+
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var adapter: MoveAdapter
+
+    private var currentIndex = 0
+    private var cutIndex = 0
 
     private var gameState : GameState = GameState(Player.White, Board.initial())
     private lateinit var UIboard: Array<Array<ImageView?>>
@@ -38,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedPos : Position? = null
     private var gameVsEngine : Boolean = true
 
+    @SuppressLint("NotifyDataSetChanged")
     override fun onCreate(savedInstanceState: Bundle?) {
         StockfishEngine.initialize(this@MainActivity)
         super.onCreate(savedInstanceState)
@@ -54,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         navView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.play_chess -> {
+                    clearHistory()
                     gameVsEngine = true
                     restartGame()
                     drawerLayout.closeDrawer(GravityCompat.START)
@@ -61,8 +79,15 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.analyze_board -> {
+                    clearHistory()
                     gameVsEngine = false
-                    restartGame()
+
+                    hideHighlights()
+                    moveCache.clear()
+                    gameState = GameState(Player.White, Board.initial())
+
+                    drawBoard(gameState.board)
+
                     drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
@@ -84,8 +109,67 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val container = findViewById<View>(R.id.move_history_container)
+        val toggleButton = findViewById<Button>(R.id.btn_toggle_history)
+
+        toggleButton.setOnClickListener {
+            if (container.visibility == View.VISIBLE) {
+                container.visibility = View.GONE
+                toggleButton.text = "Показать"
+            } else {
+                container.visibility = View.VISIBLE
+                toggleButton.text = "Скрыть"
+            }
+        }
+
+        recyclerView = findViewById(R.id.move_history_list)
+        adapter = MoveAdapter( 0)
+
+        recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        recyclerView.adapter = adapter
+
+        findViewById<Button>(R.id.btn_prev_move).setOnClickListener {
+            if (currentIndex > 0) {
+                currentIndex--
+                cutIndex--
+                gameState.currentPlayer = Player.opponent(gameState.currentPlayer)
+                updateSelection()
+            }
+        }
+
+        findViewById<Button>(R.id.btn_next_move).setOnClickListener {
+            if (currentIndex < gameState.gameHistory.size - 1) {
+                currentIndex++
+                cutIndex++
+                gameState.currentPlayer = Player.opponent(gameState.currentPlayer)
+                updateSelection()
+            }
+        }
+
+        updateSelection()
+
+
         drawBoard(gameState.board)
     }
+
+    private fun clearHistory(){
+        gameState.clearHistory()
+        currentIndex = 0
+        cutIndex = 0
+        updateMoveHistory()
+    }
+
+    private fun applyFen(gameHistory: String) {
+        gameState.board = Board.initial(gameHistory)
+        drawBoard(gameState.board)
+    }
+
+    private fun updateSelection() {
+        adapter.setSelectedIndex(currentIndex)
+        recyclerView.smoothScrollToPosition(currentIndex)
+        applyFen(gameState.gameHistoryFENs[currentIndex])
+    }
+
 
     override fun onDestroy() {
         StockfishEngine.close()
@@ -188,10 +272,7 @@ class MainActivity : AppCompatActivity() {
         }else{
             onTopPositionSelected(pos)
             moveCache[pos]?.let {
-                val handler = android.os.Handler()
-                handler.postDelayed({
-                    makeAnOpponentMove()
-                }, 1)
+                makeAnOpponentMove()
             }
         }
     }
@@ -201,18 +282,28 @@ class MainActivity : AppCompatActivity() {
             return;
         }
 
-        val bestMove = StockfishEngine.getBestMove(gameState.stateString)
+        lifecycleScope.launch {
+            try {
+                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
 
-        val fromCol = bestMove[0] - 'a'
-        val fromRow = 8 - (bestMove[1] - '0')
-        val toCol = bestMove[2] - 'a'
-        val toRow = 8 - (bestMove[3] - '0')
+                val fromCol = bestMove[0] - 'a'
+                val fromRow = 8 - (bestMove[1] - '0')
+                val toCol = bestMove[2] - 'a'
+                val toRow = 8 - (bestMove[3] - '0')
 
-        val fromPos = Position(fromRow, fromCol)
-        val toPos = Position(toRow, toCol)
+                val fromPos = Position(fromRow, fromCol)
+                val toPos = Position(toRow, toCol)
 
-        onFromPositionSelected(fromPos)
-        onTopPositionSelected(toPos)
+                withContext(Dispatchers.Main) {
+                    onFromPositionSelected(fromPos)
+                    onTopPositionSelected(toPos, eval!!)
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
     }
 
     private fun makeAnOpponentMove(fen : String){
@@ -220,18 +311,31 @@ class MainActivity : AppCompatActivity() {
             return;
         }
 
-        val bestMove = StockfishEngine.getBestMove(fen)
+        lifecycleScope.launch {
+            try {
+                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(fen)
 
-        val fromCol = bestMove[0] - 'a'
-        val fromRow = 8 - (bestMove[1] - '0')
-        val toCol = bestMove[2] - 'a'
-        val toRow = 8 - (bestMove[3] - '0')
+                if (bestMove.length < 4) {
+                    return@launch
+                }
 
-        val fromPos = Position(fromRow, fromCol)
-        val toPos = Position(toRow, toCol)
+                val fromCol = bestMove[0] - 'a'
+                val fromRow = 8 - (bestMove[1] - '0')
+                val toCol = bestMove[2] - 'a'
+                val toRow = 8 - (bestMove[3] - '0')
 
-        onFromPositionSelected(fromPos)
-        onTopPositionSelected(toPos)
+                val fromPos = Position(fromRow, fromCol)
+                val toPos = Position(toRow, toCol)
+
+                withContext(Dispatchers.Main) {
+                    onFromPositionSelected(fromPos)
+                    onTopPositionSelected(toPos, eval!!)
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun onFromPositionSelected(pos : Position){
@@ -248,11 +352,82 @@ class MainActivity : AppCompatActivity() {
         selectedPos = null
         hideHighlights()
 
+
         moveCache[pos]?.let { move ->
             if (move.type == MoveType.PawnPromotion) {
                 handlePromotion(move.fromPos, move.toPos)
             } else {
                 handleMove(move)
+                updateMoveHistory();
+            }
+
+
+
+            lifecycleScope.launch{
+                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
+                updateEvaluation(eval!!)
+            }
+        }
+    }
+
+    private fun onTopPositionSelected(pos : Position, eval : Any){
+        selectedPos = null
+        hideHighlights()
+
+
+        moveCache[pos]?.let { move ->
+            if (move.type == MoveType.PawnPromotion) {
+                handlePromotion(move.fromPos, move.toPos)
+            } else {
+                handleMove(move)
+                updateMoveHistory();
+            }
+
+
+
+            lifecycleScope.launch{
+                updateEvaluation(eval)
+
+            }
+        }
+    }
+
+    fun updateMoveHistory() {
+        currentIndex = gameState.gameHistory.lastIndex
+        if (currentIndex != currentIndex+cutIndex) {
+            val cutStart = currentIndex + cutIndex
+
+            val leftPart = gameState.gameHistory.subList(0, cutStart)
+            val rightPart = listOf(gameState.gameHistory.last())
+            gameState.gameHistory = (leftPart + rightPart).toMutableList()
+
+            val leftFENs = gameState.gameHistoryFENs.subList(0, cutStart)
+            val rightFEN = listOf(gameState.gameHistoryFENs.last())
+            gameState.gameHistoryFENs = (leftFENs + rightFEN).toMutableList()
+
+            currentIndex += cutIndex
+            cutIndex = 0
+        }
+        val moves = gameState.gameHistory
+        adapter.updateMoves(moves, currentIndex)
+        recyclerView.scrollToPosition(currentIndex)
+    }
+
+    fun updateEvaluation(eval: Any?) {
+        val evalText = findViewById<TextView>(R.id.evalText)
+        val evalBar = findViewById<ProgressBar>(R.id.evalBar)
+
+        runOnUiThread {
+            if (eval is String && eval.startsWith("mate")) {
+                val mateValue = eval.split(" ").last().toInt()
+                evalText.text = "Mate in ${if (mateValue > 0) mateValue else -mateValue}"
+                evalBar.progress = if (mateValue > 0) 100 else 0
+            } else if (eval is Float) {
+                val clampedEval = eval.coerceIn(-10f, 10f)
+                val progress = (((clampedEval + 10f) / 20f) * 100f).toInt()
+
+                evalText.text = String.format("%.2f", clampedEval)
+                evalBar.progress = progress
             }
         }
     }
@@ -282,12 +457,16 @@ class MainActivity : AppCompatActivity() {
         if(move.type == MoveType.EnPassant || move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
             drawBoard(gameState.board)
         } else{
+
             val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
             val newPos = UIboard[move.toPos.row][move.toPos.column]
 
-            newPos?.setImageDrawable(oldPos?.drawable)
-            oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+            runOnUiThread {
+                newPos?.setImageDrawable(oldPos?.drawable)
+                oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+            }
         }
+
 
         if(gameState.isGameOver()){
             showGameOver()
@@ -379,16 +558,13 @@ class MainActivity : AppCompatActivity() {
             override fun onSettingsConfirmed(
                 playAsWhite: Boolean,
                 isLevel : Boolean, eloOrLevelLimitValue: Int,
-                isTime: Boolean, DepthOrTimeLimitValue: Int,
+                isTime: Boolean, depthOrTimeLimitValue: Int,
                 startPos: String
             ) {
-                startGameWithSettings(playAsWhite, isLevel, eloOrLevelLimitValue, isTime, DepthOrTimeLimitValue, startPos)
-
+                startGameWithSettings(playAsWhite, isLevel, eloOrLevelLimitValue, isTime, depthOrTimeLimitValue, startPos)
             }
         }
         dialog.show(supportFragmentManager, "PlayChessMenu")
-
-
     }
 
     private fun startGameWithSettings(playAsWhite: Boolean,
@@ -435,9 +611,9 @@ class MainActivity : AppCompatActivity() {
         drawBoard(gameState.board)
 
         if (FenUtils.isValidFEN(startPosition) && FenUtils.currentPlayer(startPosition) != player) {
-            android.os.Handler().postDelayed({
+            lifecycleScope.launch {
                 makeAnOpponentMove(startPosition)
-            }, 100)
+            }
         }
     }
 

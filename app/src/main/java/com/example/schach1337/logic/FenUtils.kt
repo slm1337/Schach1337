@@ -1,5 +1,7 @@
 package com.example.schach1337.logic
 
+import com.example.schach1337.logic.pieces.Piece
+
 object FenUtils {
     fun isValidFEN(fen: String): Boolean {
         val parts = fen.trim().split(" ")
@@ -45,9 +47,11 @@ object FenUtils {
     }
 
     fun getMoveFromFENs(fen1: String, fen2: String): String? {
+        if (isKingsideCastling(fen1, fen2, fen1.split(" ")[1])) return "O-O"
+        if (isQueensideCastling(fen1, fen2, fen1.split(" ")[1])) return "O-O-O"
+
         val board1 = parseFENBoard(fen1)
         val board2 = parseFENBoard(fen2)
-        val turn = fen1.split(" ")[1] // чей ход: 'w' или 'b'
 
         val differences = mutableListOf<Triple<String, Char?, Char?>>()
 
@@ -62,32 +66,13 @@ object FenUtils {
             }
         }
 
-        if (isKingsideCastling(fen1, fen2, turn)) return "O-O"
-        if (isQueensideCastling(fen1, fen2, turn)) return "O-O-O"
-
-        val fromSquare = differences.find { it.second != null && (it.third == null || it.second != it.third) }?.first
-        val toSquare = differences.find { it.third != null && (it.second == null || it.second != it.third) }?.first
+        val fromSquare = differences.find { it.second != null && it.third == null }?.first
+        val toSquare = differences.find { it.third != null }?.first
 
         if (fromSquare != null && toSquare != null) {
-            val toRank = toSquare[1].digitToInt()
-            val promotionRank = if (turn == "w") 8 else 1
-            val promotedPiece = differences.find { it.first == toSquare }?.third
-            if ((turn == "w" && toRank == 8 || turn == "b" && toRank == 1) &&
-                (promotedPiece == 'q' || promotedPiece == 'r' || promotedPiece == 'b' || promotedPiece == 'n'
-                        || promotedPiece == 'Q' || promotedPiece == 'R' || promotedPiece == 'B' || promotedPiece == 'N')
-            ) {
-                return "$fromSquare$toSquare${promotedPiece.lowercaseChar()}"
-            }
-
-            val isPawn = differences.find { it.first == fromSquare }?.second?.lowercaseChar() == 'p'
-            val fromRank = fromSquare[1].digitToInt()
-            val toFile = toSquare[0]
-            val fromFile = fromSquare[0]
-            if (isPawn && fromFile != toFile && differences.size == 1) {
-                return "$fromSquare$toSquare" // Взятие на проходе выглядит как обычное взятие
-            }
-
-            return "$fromSquare$toSquare"
+            val isCapture = differences.any { it.second != null && it.third == null && it.first == toSquare }
+            val move = if (isCapture) "$fromSquare x $toSquare" else "$fromSquare-$toSquare"
+            return move
         }
 
         return null
@@ -116,16 +101,8 @@ object FenUtils {
         val board2 = parseFENBoard(fen2)
 
         return when (turn) {
-            "w" -> {
-                board1[7][4] == 'K' && board1[7][7] == 'R' && // E1, H1
-                        board2[7][6] == 'K' && board2[7][5] == 'R' && // G1, F1
-                        board2[7][4] == null && board2[7][7] == null  // E1, H1 пусты
-            }
-            "b" -> {
-                board1[0][4] == 'k' && board1[0][7] == 'r' && // E8, H8
-                        board2[0][6] == 'k' && board2[0][5] == 'r' && // G8, F8
-                        board2[0][4] == null && board2[0][7] == null  // E8, H8 пусты
-            }
+            "w" -> board1[7][4] == 'K' && board2[7][6] == 'K'
+            "b" -> board1[0][4] == 'k' && board2[0][6] == 'k'
             else -> false
         }
     }
@@ -135,18 +112,9 @@ object FenUtils {
         val board2 = parseFENBoard(fen2)
 
         return when (turn) {
-            "w" -> {
-                board1[7][4] == 'K' && board1[7][0] == 'R' && // E1, A1
-                        board2[7][2] == 'K' && board2[7][3] == 'R' && // C1, D1
-                        board2[7][4] == null && board2[7][0] == null  // E1, A1 пусты
-            }
-            "b" -> {
-                board1[0][4] == 'k' && board1[0][0] == 'r' && // E8, A8
-                        board2[0][2] == 'k' && board2[0][3] == 'r' && // C8, D8
-                        board2[0][4] == null && board2[0][0] == null  // E8, A8 пусты
-            }
+            "w" -> board1[7][4] == 'K' && board2[7][2] == 'K'
+            "b" -> board1[0][4] == 'k' && board2[0][2] == 'k'
             else -> false
         }
     }
-
 }

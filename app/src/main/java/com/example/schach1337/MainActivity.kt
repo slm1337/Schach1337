@@ -33,8 +33,12 @@ import com.example.schach1337.logic.moves.PawnPromotion
 import com.example.schach1337.logic.pieces.Piece
 import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 
 class MainActivity : AppCompatActivity() {
@@ -44,15 +48,19 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: MoveAdapter
+    private lateinit var multiPvAdapter: MultiPvAdapter
+    private lateinit var arrowOverlay: ArrowOverlayView
 
     private var currentIndex = 0
     private var cutIndex = 0
+    private var moveEngine : Boolean = true
 
     private var gameState : GameState = GameState(Player.White, Board.initial())
     private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
     private var selectedPos : Position? = null
     private var gameVsEngine : Boolean = true
+
 
     @SuppressLint("NotifyDataSetChanged")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,8 +156,83 @@ class MainActivity : AppCompatActivity() {
 
         updateSelection()
 
+        val recyclerView = findViewById<RecyclerView>(R.id.recyclerMultiPv)
+        val evalText = findViewById<TextView>(R.id.evalText)
+        val evalBar = findViewById<ProgressBar>(R.id.evalBar)
 
+        multiPvAdapter = MultiPvAdapter()
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = multiPvAdapter
+
+        StockfishEngine.initialize(this)
         drawBoard(gameState.board)
+
+
+        val bordContainer = findViewById<FrameLayout>(R.id.chessboard_container)
+        arrowOverlay = ArrowOverlayView(this)
+        arrowOverlay.isClickable = false
+        arrowOverlay.isFocusable = false
+        arrowOverlay.isFocusableInTouchMode = false
+        arrowOverlay.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+
+        bordContainer.addView(arrowOverlay, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+
+
+        lifecycleScope.launch {
+            StockfishEngine.infoFlow.collectLatest { infoList ->
+                if (!gameVsEngine) {
+                    multiPvAdapter.updateData(infoList)
+
+                    arrowOverlay.clearArrows()
+                    val cellSize = container.width / 8f
+
+                    val sortedInfoList = if (gameState.currentPlayer == Player.White) {
+                        infoList.sortedByDescending { (it.score as? Float) ?: 0f }
+                    } else {
+                        infoList.sortedBy { (it.score as? Float) ?: 0f }
+                    }
+
+                    sortedInfoList.forEachIndexed { index, info ->
+                        val bestMove = info.bestMove
+                        if (bestMove.length == 4) {
+                            val start = bestMove.substring(0, 2)
+                            val end = bestMove.substring(2, 4)
+
+                            val (startFile, startRank) = convertChessCoordToIndex(start)
+                            val (endFile, endRank) = convertChessCoordToIndex(end)
+
+                            val startX = (startFile - 1) * cellSize + cellSize / 2
+                            val startY = (8 - startRank) * cellSize + cellSize / 2
+                            val endX = (endFile - 1) * cellSize + cellSize / 2
+                            val endY = (8 - endRank) * cellSize + cellSize / 2
+
+                            arrowOverlay.addArrow(startX, startY, endX, endY, index + 1)
+                        }
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            StockfishEngine.evalFlow.collectLatest { eval ->
+                if(!gameVsEngine) {
+                    eval?.let {
+                        evalText.text = "%.2f".format(it)
+                        evalBar.progress = ((it + 10) * 5).toInt().coerceIn(0, 100)
+                    }
+                }
+            }
+        }
+
+    }
+
+    private fun convertChessCoordToIndex(coord: String): Pair<Int, Int> {
+        val file = coord[0] - 'a' + 1   // 'a' -> 1, 'b' -> 2, ..., 'h' -> 8
+        val rank = coord[1].digitToInt()  // '1' -> 1, ..., '8' -> 8
+        return Pair(file, rank)
     }
 
     private fun clearHistory(){
@@ -197,9 +280,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         val container = findViewById<FrameLayout>(R.id.chessboard_container)
-        container.removeAllViews()
-        container.addView(tableLayout)
+
+        // Удаляем только шахматную доску, но не overlay
+        if (container.childCount > 0 && container.getChildAt(0) is TableLayout) {
+            container.removeViewAt(0)
+        }
+
+        // Добавляем доску под стрелками
+        container.addView(tableLayout, 0) // Добавляем доску в самый нижний слой
     }
+
 
     private fun initialBoard(board : Board) : TableLayout{
         val tableLayout = TableLayout(this)
@@ -271,73 +361,10 @@ class MainActivity : AppCompatActivity() {
             onFromPositionSelected(pos)
         }else{
             onTopPositionSelected(pos)
-            moveCache[pos]?.let {
-                makeAnOpponentMove()
-            }
         }
     }
 
-    private fun makeAnOpponentMove(){
-        if(!gameVsEngine){
-            return;
-        }
-
-        lifecycleScope.launch {
-            try {
-                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
-
-                val fromCol = bestMove[0] - 'a'
-                val fromRow = 8 - (bestMove[1] - '0')
-                val toCol = bestMove[2] - 'a'
-                val toRow = 8 - (bestMove[3] - '0')
-
-                val fromPos = Position(fromRow, fromCol)
-                val toPos = Position(toRow, toCol)
-
-                withContext(Dispatchers.Main) {
-                    onFromPositionSelected(fromPos)
-                    onTopPositionSelected(toPos, eval!!)
-                }
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-    }
-
-    private fun makeAnOpponentMove(fen : String){
-        if(!gameVsEngine){
-            return;
-        }
-
-        lifecycleScope.launch {
-            try {
-                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(fen)
-
-                if (bestMove.length < 4) {
-                    return@launch
-                }
-
-                val fromCol = bestMove[0] - 'a'
-                val fromRow = 8 - (bestMove[1] - '0')
-                val toCol = bestMove[2] - 'a'
-                val toRow = 8 - (bestMove[3] - '0')
-
-                val fromPos = Position(fromRow, fromCol)
-                val toPos = Position(toRow, toCol)
-
-                withContext(Dispatchers.Main) {
-                    onFromPositionSelected(fromPos)
-                    onTopPositionSelected(toPos, eval!!)
-                }
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
+    @Synchronized
     private fun onFromPositionSelected(pos : Position){
         val moves : Sequence<Move> = gameState.legalMovesForPiece(pos) ?: return
 
@@ -358,37 +385,131 @@ class MainActivity : AppCompatActivity() {
                 handlePromotion(move.fromPos, move.toPos)
             } else {
                 handleMove(move)
-                updateMoveHistory();
+                updateMoveHistory()
+
+                if(!gameVsEngine){
+                    StockfishEngine.analyzePosition(gameState.stateString, depthLimit = 20)
+                }
+
+                if (moveEngine){
+                    moveEngine = false
+                    makeAnOpponentMove()
+                } else {
+                    moveEngine = true
+                }
+
             }
 
+        }
+    }
 
+    suspend fun awaitBestMove(minDepth: Int = 20, timeoutMs: Long = 30_000): String? {
+        return withTimeoutOrNull(timeoutMs) {
+            StockfishEngine.infoFlow
+                .filter { list -> list.isNotEmpty() && list.firstOrNull()?.depth ?: 0 >= minDepth }
+                .first()
+                .firstOrNull()
+                ?.bestMove
+        }
+    }
 
-            lifecycleScope.launch{
+    private fun makeAnOpponentMove(){
+        if(!gameVsEngine){
+            return;
+        }
+
+        lifecycleScope.launch {
+            try {
+//                val bestMove = awaitBestMove()
+//                if (bestMove == null) {
+//                    println("Нет хода — анализ не завершён вовремя")
+//                    return@launch
+//                }
+
                 val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
-                updateEvaluation(eval!!)
+
+
+                val fromCol = bestMove[0] - 'a'
+                val fromRow = 8 - (bestMove[1] - '0')
+                val toCol = bestMove[2] - 'a'
+                val toRow = 8 - (bestMove[3] - '0')
+
+                val fromPos = Position(fromRow, fromCol)
+                val toPos = Position(toRow, toCol)
+
+                withContext(Dispatchers.Main) {
+                    onFromPositionSelected(fromPos)
+                    onTopPositionSelected(toPos)
+                    updateEvaluation(eval)
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+    }
+
+    private fun makeAnOpponentMove(fen : String){
+        if(!gameVsEngine){
+            return;
+        }
+
+        lifecycleScope.launch {
+            try {
+//                val bestMove = awaitBestMove()
+//                if (bestMove == null) {
+//                    println("Нет хода — анализ не завершён вовремя")
+//                    return@launch
+//                }
+//
+//                println("Stockfish recommends: $bestMove")
+
+                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
+
+                if (bestMove.length < 4) {
+                    return@launch
+                }
+
+                val fromCol = bestMove[0] - 'a'
+                val fromRow = 8 - (bestMove[1] - '0')
+                val toCol = bestMove[2] - 'a'
+                val toRow = 8 - (bestMove[3] - '0')
+
+                val fromPos = Position(fromRow, fromCol)
+                val toPos = Position(toRow, toCol)
+
+                withContext(Dispatchers.Main) {
+                    onFromPositionSelected(fromPos)
+                    onTopPositionSelected(toPos)
+                    updateEvaluation(eval)
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
 
-    private fun onTopPositionSelected(pos : Position, eval : Any){
-        selectedPos = null
-        hideHighlights()
+    private fun handleMove(move : Move){
+        gameState.makeMove(move)
+
+        if(move.type == MoveType.EnPassant || move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
+            drawBoard(gameState.board)
+        } else{
+
+            val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
+            val newPos = UIboard[move.toPos.row][move.toPos.column]
+
+            //runOnUiThread {
+                newPos?.setImageDrawable(oldPos?.drawable)
+                oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
+            //}
+        }
 
 
-        moveCache[pos]?.let { move ->
-            if (move.type == MoveType.PawnPromotion) {
-                handlePromotion(move.fromPos, move.toPos)
-            } else {
-                handleMove(move)
-                updateMoveHistory();
-            }
-
-
-
-            lifecycleScope.launch{
-                updateEvaluation(eval)
-
-            }
+        if(gameState.isGameOver()){
+            showGameOver()
         }
     }
 
@@ -449,28 +570,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         pawnPromotionsMenu.show()
-    }
-
-    private fun handleMove(move : Move){
-        gameState.makeMove(move)
-
-        if(move.type == MoveType.EnPassant || move.type == MoveType.CastleKS || move.type == MoveType.CastleQS){
-            drawBoard(gameState.board)
-        } else{
-
-            val oldPos = UIboard[move.fromPos.row][move.fromPos.column]
-            val newPos = UIboard[move.toPos.row][move.toPos.column]
-
-            runOnUiThread {
-                newPos?.setImageDrawable(oldPos?.drawable)
-                oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
-            }
-        }
-
-
-        if(gameState.isGameOver()){
-            showGameOver()
-        }
     }
 
     private fun showHighlights(){
@@ -612,7 +711,7 @@ class MainActivity : AppCompatActivity() {
 
         if (FenUtils.isValidFEN(startPosition) && FenUtils.currentPlayer(startPosition) != player) {
             lifecycleScope.launch {
-                makeAnOpponentMove(startPosition)
+                //makeAnOpponentMove(startPosition)
             }
         }
     }

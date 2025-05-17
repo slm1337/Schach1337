@@ -1,6 +1,7 @@
 package com.example.schach1337
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.MotionEvent
@@ -286,7 +287,6 @@ class MainActivity : AppCompatActivity() {
             container.removeViewAt(0)
         }
 
-        // Добавляем доску под стрелками
         container.addView(tableLayout, 0) // Добавляем доску в самый нижний слой
     }
 
@@ -388,7 +388,7 @@ class MainActivity : AppCompatActivity() {
                 updateMoveHistory()
 
                 if(!gameVsEngine){
-                    StockfishEngine.analyzePosition(gameState.stateString, depthLimit = 20)
+                    StockfishEngine.analyzePosition(gameState.stateString)
                 }
 
                 if (moveEngine){
@@ -457,14 +457,6 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-//                val bestMove = awaitBestMove()
-//                if (bestMove == null) {
-//                    println("Нет хода — анализ не завершён вовремя")
-//                    return@launch
-//                }
-//
-//                println("Stockfish recommends: $bestMove")
-
                 val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
 
                 if (bestMove.length < 4) {
@@ -721,6 +713,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSettings() {
-        return
+        val intent = Intent(this@MainActivity, SettingsActivity::class.java)
+        startActivity(intent)
     }
 }

@@ -23,12 +23,20 @@ object StockfishEngine {
     var isInitialized = false
         private set
 
+    // engine settings
     var depth: Int? = 20
     var searchTime: Int? = null
     var skillElo: Int? = null
     var skillLevel: Int? = 20
     var numThreads: Int = 1
     var multiPv : Int = 2
+    var hash : Int = 16
+    var numaPolicy : String = "auto"
+    var moveOverhead : Int = 10
+    var nodesTime : Int = 0
+    var syzygy50MoveRule = true
+    var syzygyProbeDepth : Int = 1
+    var syzygyProbeLimit : Int = 0
 
     var FEN : String = ""
     private var currentJob: Job? = null
@@ -61,7 +69,6 @@ object StockfishEngine {
     }
 
     fun applyEngineSettings() {
-        setUciOption("MultiPV", "2")
         if (skillLevel != null) {
             setUciOption("UCI_LimitStrength", "false")
             setUciOption("Skill Level", skillLevel.toString())
@@ -72,12 +79,23 @@ object StockfishEngine {
         }
 
         setUciOption("Threads", numThreads.toString())
+        setUciOption("MultiPV", multiPv.toString())
+        setUciOption("Hash", hash.toString())
+        setUciOption("NumaPolicy", numaPolicy.toString())
+        setUciOption("Move Overhead", moveOverhead.toString())
+        setUciOption("nodestime", nodesTime.toString())
+        setUciOption("Syzygy50MoveRule", syzygy50MoveRule.toString())
+        setUciOption("SyzygyProbeDepth", syzygyProbeDepth.toString())
+        setUciOption("SyzygyProbeLimit", syzygyProbeLimit.toString())
+
     }
 
+    @Synchronized
     private fun setUciOption(name: String, value: String) {
         sendCommand("setoption name $name value $value")
     }
 
+    @Synchronized
     fun sendCommand(command: String) {
         try {
             writer?.apply {
@@ -145,7 +163,7 @@ object StockfishEngine {
     }
 
     @SuppressLint("SuspiciousIndentation")
-    fun analyzePosition(fen: String, depthLimit: Int? = null, timeLimit: Int? = null) {
+    fun analyzePosition(fen: String) {
         currentJob?.cancel()
         sendCommand("stop")
 
@@ -158,7 +176,8 @@ object StockfishEngine {
             sendCommand("position fen $fen")
             FEN = fen;
 
-            sendCommand(if (depthLimit != null) "go depth $depthLimit" else "go movetime ${timeLimit ?: 1000}")
+            //sendCommand(if (depth != null) "go depth $depth" else "go movetime ${searchTime ?: 1000}")
+            sendCommand("go infinite")
 
             val results = mutableMapOf<Int, MultipvInfo>()
             val currentPlayer = FenUtils.currentPlayer(fen)
@@ -166,8 +185,9 @@ object StockfishEngine {
             try {
                 var line: String? = ""
                 while (isActive && reader?.readLine().also { line = it } != null) {
+                    println(line)
                     val l = line ?: continue
-                        if (l.startsWith("info")) {
+                        if (l.startsWith("info") && l.contains("seldepth")) {
                             _infoFlow.emit(emptyList())
                             val parts = l.split(" ")
                             var multipv = 1
@@ -209,14 +229,12 @@ object StockfishEngine {
 
                             if (local_depth >= 0 && pv.isNotEmpty()) {
                                     results[multipv] = MultipvInfo(FEN, local_depth, score, pv, pv.first())
-                                    println(results.values.toList())
                                     _infoFlow.emit(results.values.toList())
                                     if (multipv == 1 && score is Float) {
                                         _evalFlow.emit(score)
                                     }
                             }
                         }
-                    delay(50)
                 }
             } catch (e: IOException) {
                 e.printStackTrace()

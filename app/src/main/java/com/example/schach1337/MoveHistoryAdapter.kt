@@ -5,13 +5,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 
 class MoveAdapter(
     private var selectedIndex: Int = -1
 ) : RecyclerView.Adapter<MoveAdapter.MoveViewHolder>() {
 
-    private val items: MutableList<String> = mutableListOf()
+    private val moves: MutableList<String> = mutableListOf()
+    private val analyses: MutableList<MoveAnalysis?> = mutableListOf()
 
     class MoveViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val textView: TextView = view.findViewById(R.id.moveText)
@@ -24,13 +26,33 @@ class MoveAdapter(
     }
 
     override fun onBindViewHolder(holder: MoveViewHolder, position: Int) {
-        holder.textView.text = items[position]
+        holder.textView.text = moves[position]
+        // Apply yellow background for selected move
         holder.textView.setBackgroundColor(
             if (position == selectedIndex) Color.YELLOW else Color.TRANSPARENT
         )
+        // Apply border based on MoveCategory
+        val analysis = analyses.getOrNull(position)
+        val borderDrawableId = when (analysis?.category) {
+            MoveCategory.BEST -> R.drawable.best_border
+            MoveCategory.GOOD -> R.drawable.good_border
+            MoveCategory.INACCURACY -> R.drawable.inaccuracy_border
+            MoveCategory.MISTAKE -> R.drawable.mistake_border
+            MoveCategory.BLUNDER -> R.drawable.blunder_border
+            else -> 0 // No border if no analysis
+        }
+        holder.textView.background = if (borderDrawableId != 0) {
+            ContextCompat.getDrawable(holder.textView.context, borderDrawableId)
+        } else {
+            null
+        }
+        // Ensure yellow background is visible if selected
+        if (position == selectedIndex) {
+            holder.textView.setBackgroundColor(Color.YELLOW)
+        }
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = moves.size
 
     fun setSelectedIndex(index: Int) {
         val oldIndex = selectedIndex
@@ -39,13 +61,13 @@ class MoveAdapter(
         notifyItemChanged(selectedIndex)
     }
 
-    fun getSelectedIndex(): Int {
-        return selectedIndex
-    }
+    fun getSelectedIndex(): Int = selectedIndex
 
-    fun updateMoves(newMoves: MutableList<String>, newSelectedIndex: Int) {
-        items.clear()
-        items.addAll(newMoves)
+    fun updateMoves(newMoves: MutableList<String>, newAnalyses: MutableList<MoveAnalysis?>, newSelectedIndex: Int) {
+        moves.clear()
+        moves.addAll(newMoves)
+        analyses.clear()
+        analyses.addAll(newAnalyses)
         selectedIndex = newSelectedIndex
         notifyDataSetChanged()
     }

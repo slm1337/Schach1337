@@ -26,45 +26,45 @@ class Board {
         this[pos.row, pos.column] = value
     }
 
-    fun getPawnSkipPosition(player : Player) : Position? {
+    fun getPawnSkipPosition(player: Player): Position? {
         return pawnSkipPositions[player]
     }
 
-    fun setPawnSkipPosition(player : Player, pos : Position?) {
+    fun setPawnSkipPosition(player: Player, pos: Position?) {
         pawnSkipPositions[player] = pos
     }
 
-    companion object{
-        fun initial() : Board{
+    companion object {
+        fun initial(): Board {
             val board = Board()
             board.addStartPieces()
             return board
         }
 
-        fun initial(fen: String) : Board{
+        fun initial(fen: String): Board {
             val board = Board()
             board.addStartPieces(fen)
             return board
         }
 
-        fun isInside(pos : Position) : Boolean{
+        fun isInside(pos: Position): Boolean {
             return pos.row in 0..7 && pos.column in 0..7
         }
 
-        private fun isKingVKing(counting: Counting) : Boolean{
+        private fun isKingVKing(counting: Counting): Boolean {
             return counting.totalCount == 2
         }
 
-        private fun isKingBishopVKing(counting: Counting) : Boolean{
+        private fun isKingBishopVKing(counting: Counting): Boolean {
             return counting.totalCount == 3 && (counting.white(PieceType.Bishop) == 1 || counting.black(PieceType.Bishop) == 1)
         }
 
-        private fun isKingKnightVKing(counting: Counting) : Boolean{
+        private fun isKingKnightVKing(counting: Counting): Boolean {
             return counting.totalCount == 3 && (counting.white(PieceType.Knight) == 1 || counting.black(PieceType.Knight) == 1)
         }
     }
 
-    private fun addStartPieces(){
+    private fun addStartPieces() {
         this[0, 0] = Rook(Player.Black)
         this[0, 1] = Knight(Player.Black)
         this[0, 2] = Bishop(Player.Black)
@@ -83,14 +83,14 @@ class Board {
         this[7, 6] = Knight(Player.White)
         this[7, 7] = Rook(Player.White)
 
-        for(c in 0..7){
+        for (c in 0..7) {
             this[1, c] = Pawn(Player.Black)
             this[6, c] = Pawn(Player.White)
         }
     }
 
     private fun addStartPieces(fen: String) {
-        if(fen == ""){
+        if (fen.isEmpty()) {
             addStartPieces()
             return
         }
@@ -106,7 +106,8 @@ class Board {
             'Q' to { Queen(Player.White) }, 'K' to { King(Player.White) }
         )
 
-        val rows = fen.split(" ")[0].split("/")
+        val parts = fen.trim().split(" ")
+        val rows = parts[0].split("/")
         for ((rowIndex, row) in rows.withIndex()) {
             var col = 0
             for (char in row) {
@@ -118,6 +119,25 @@ class Board {
                 }
             }
         }
+
+        // Set en passant (pawn skip) position
+        val enPassant = parts[3]
+        if (enPassant != "-") {
+            val col = enPassant[0].lowercaseChar() - 'a'
+            val row = 8 - enPassant[1].digitToInt()
+            val player = if (row == 2) Player.White else Player.Black // White pawn moved to rank 6, Black to rank 3
+            setPawnSkipPosition(Player.opponent(player), Position(row, col))
+        } else {
+            setPawnSkipPosition(Player.White, null)
+            setPawnSkipPosition(Player.Black, null)
+        }
+    }
+
+    fun setFromFen(fen: String) {
+//        if (!FenUtils.isValidFEN(fen)) {
+//            throw IllegalArgumentException("Invalid FEN string: $fen")
+//        }
+        addStartPieces(fen)
     }
 
     private fun clearBoard() {
@@ -128,23 +148,22 @@ class Board {
         }
     }
 
-    fun isEmpty(pos : Position): Boolean {
+    fun isEmpty(pos: Position): Boolean {
         return this[pos] == null
     }
 
-    fun piecePositions() : Sequence<Position> = sequence{
-        for(r in 0..7){
-            for(c in 0..7){
+    fun piecePositions(): Sequence<Position> = sequence {
+        for (r in 0..7) {
+            for (c in 0..7) {
                 val pos = Position(r, c)
-
-                if(!isEmpty(pos)){
+                if (!isEmpty(pos)) {
                     yield(pos)
                 }
             }
         }
     }
 
-    fun piecePositionsFor(player : Player) : Sequence<Position>{
+    fun piecePositionsFor(player: Player): Sequence<Position> {
         return piecePositions().filter { pos -> this[pos]?.color == player }
     }
 
@@ -155,78 +174,70 @@ class Board {
         }
     }
 
-    fun copy() : Board {
+    fun copy(): Board {
         val copy = Board()
-
-        for(pos in piecePositions()){
+        for (pos in piecePositions()) {
             copy[pos] = this[pos]?.copy()
         }
-
+        copy.setPawnSkipPosition(Player.White, getPawnSkipPosition(Player.White))
+        copy.setPawnSkipPosition(Player.Black, getPawnSkipPosition(Player.Black))
         return copy
     }
 
-    fun countPieces() : Counting{
+    fun countPieces(): Counting {
         val counting = Counting()
-
-        for(pos : Position in piecePositions()){
+        for (pos: Position in piecePositions()) {
             val piece = this[pos]!!
             counting.increment(piece.color, piece.type)
         }
-
         return counting
     }
 
-    fun insifficientMaterial() : Boolean{
+    fun insifficientMaterial(): Boolean {
         val counting = countPieces()
-
         return isKingVKing(counting) || isKingBishopVKing(counting) ||
                 isKingKnightVKing(counting) || isKingBishopVKingBishop(counting)
     }
 
-    private fun findPiece(color : Player, type : PieceType) : Position{
-        return piecePositionsFor(color).first{ pos ->
+    private fun findPiece(color: Player, type: PieceType): Position {
+        return piecePositionsFor(color).first { pos ->
             this[pos]?.type == type
         }
     }
 
-    private fun isKingBishopVKingBishop(counting: Counting) : Boolean{
-        if (counting.totalCount != 4){
+    private fun isKingBishopVKingBishop(counting: Counting): Boolean {
+        if (counting.totalCount != 4) {
             return false
         }
-
-        if(counting.white(PieceType.Bishop) != 1 || counting.black(PieceType.Bishop) != 1){
+        if (counting.white(PieceType.Bishop) != 1 || counting.black(PieceType.Bishop) != 1) {
             return false
         }
-
-        val wBishopPos : Position = findPiece(Player.White, PieceType.Bishop)
-        val bBishopPos : Position = findPiece(Player.Black, PieceType.Bishop)
-
+        val wBishopPos: Position = findPiece(Player.White, PieceType.Bishop)
+        val bBishopPos: Position = findPiece(Player.Black, PieceType.Bishop)
         return wBishopPos.squareColor() == bBishopPos.squareColor()
     }
 
-    private fun isUnmovedKingAndRook(kingPos : Position, rookPos : Position) : Boolean{
-        if(isEmpty(kingPos) || isEmpty(rookPos)){
+    private fun isUnmovedKingAndRook(kingPos: Position, rookPos: Position): Boolean {
+        if (isEmpty(kingPos) || isEmpty(rookPos)) {
             return false
         }
-
         val king = this[kingPos]!!
         val rook = this[rookPos]!!
-
         return king.type == PieceType.King && rook.type == PieceType.Rook &&
                 !king.hasMoved && !rook.hasMoved
     }
 
-    fun castleRightKS(player : Player) : Boolean{
-        return when(player){
-            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7,7))
+    fun castleRightKS(player: Player): Boolean {
+        return when (player) {
+            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7, 7))
             Player.Black -> isUnmovedKingAndRook(Position(0, 4), Position(0, 7))
             else -> false
         }
     }
 
-    fun castleRightQS(player : Player) : Boolean{
-        return when(player){
-            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7,0))
+    fun castleRightQS(player: Player): Boolean {
+        return when (player) {
+            Player.White -> isUnmovedKingAndRook(Position(7, 4), Position(7, 0))
             Player.Black -> isUnmovedKingAndRook(Position(0, 4), Position(0, 0))
             else -> false
         }
@@ -235,11 +246,9 @@ class Board {
     private fun hasPawnInPosition(player: Player, pawnPositions: Array<Position>, skipPos: Position): Boolean {
         for (pos in pawnPositions.filter { isInside(it) }) {
             val piece = this[pos] ?: continue
-
             if (piece.color != player || piece.type != PieceType.Pawn) {
                 continue
             }
-
             val move = EnPassant(pos, skipPos)
             if (move.isLegal(this)) {
                 return true
@@ -248,18 +257,13 @@ class Board {
         return false
     }
 
-
     fun canCaptureEnPassant(player: Player): Boolean {
         val skipPos = getPawnSkipPosition(Player.opponent(player)) ?: return false
-
         val pawnPositions = when (player) {
-            Player.White -> arrayOf(skipPos + Direction.SouthWest + Direction.SouthEast)
-            Player.Black -> arrayOf(skipPos + Direction.NorthWest + Direction.NorthEast)
+            Player.White -> arrayOf(skipPos + Direction.SouthWest, skipPos + Direction.SouthEast)
+            Player.Black -> arrayOf(skipPos + Direction.NorthWest, skipPos + Direction.NorthEast)
             else -> emptyArray()
         }
-
         return hasPawnInPosition(player, pawnPositions, skipPos)
     }
-
-
 }

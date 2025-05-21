@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.*
 
+
+
 object StockfishEngine {
     private var process: Process? = null
     private var writer: BufferedWriter? = null
@@ -24,12 +26,12 @@ object StockfishEngine {
         private set
 
     // engine settings
-    var depth: Int? = 20
+    var depth: Int? = 12
     var searchTime: Int? = null
     var skillElo: Int? = null
     var skillLevel: Int? = 20
     var numThreads: Int = 1
-    var multiPv : Int = 2
+    var multiPv : Int = 1
     var hash : Int = 16
     var numaPolicy : String = "auto"
     var moveOverhead : Int = 10
@@ -109,6 +111,9 @@ object StockfishEngine {
 
 
     suspend fun getBestMoveAndEval(fen: String): Pair<String, Any?> = withContext(Dispatchers.IO) {
+        sendCommand("stop")
+        stop()
+        setUciOption("MultiPV","1")
         sendCommand("position fen $fen")
 
         when {
@@ -158,7 +163,6 @@ object StockfishEngine {
             }
             else -> eval
         }
-
         Pair(bestMove, eval)
     }
 

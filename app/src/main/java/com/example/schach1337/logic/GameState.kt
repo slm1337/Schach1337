@@ -19,6 +19,7 @@ class GameState {
 
         stateString = StateString(currentPlayer, board).toString()
         stateHistory[stateString] = 1
+        clearHistory()
         gameHistoryFENs.add(stateString)
         gameHistory.add(" ")
     }
@@ -95,8 +96,16 @@ class GameState {
         stateHistory[stateString] = stateHistory.getOrDefault(stateString, 0) + 1
     }
 
+
     private fun threefoldRepetition() : Boolean{
         return stateHistory[stateString] == 3
+    }
+
+    fun updateMoveHistoryFromFENs(){
+        for (i in 1 until gameHistoryFENs.size) {
+            val move = FenUtils.getMoveFromFENs(gameHistoryFENs[i - 1], gameHistoryFENs[i])!!
+            gameHistory.add(move)
+        }
     }
 
     fun clearHistory(){

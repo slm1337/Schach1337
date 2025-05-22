@@ -1,11 +1,10 @@
 package com.example.schach1337
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.view.LayoutInflater
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -16,7 +15,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.schach1337.databinding.ActivityMainBinding
@@ -32,12 +30,8 @@ import com.example.schach1337.logic.moves.PawnPromotion
 import com.example.schach1337.logic.pieces.Piece
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-
 
 class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListener {
     private var binding: ActivityMainBinding? = null
@@ -47,22 +41,40 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
 
     private var currentIndex = 0
     private var cutIndex = 0
-    private var moveEngine: Boolean = true
+    private var isAnalysisVisible = true
+    private var isPaused = false
+    private var moveEngine: Boolean = false
+    private var gameVsEngine: Boolean = false
     private var gameState: GameState = GameState(Player.White, Board.initial())
     private lateinit var UIboard: Array<Array<ImageView?>>
     private val moveCache = mutableMapOf<Position, Move>()
     private var selectedPos: Position? = null
-    private var gameVsEngine: Boolean = true
+
     private var moveAnalyses: MutableList<MoveAnalysis?> = mutableListOf()
+
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val KEY_CURRENT_INDEX = "current_index"
+        private const val KEY_CUT_INDEX = "cut_index"
+        private const val KEY_MOVE_ENGINE = "move_engine"
+        private const val KEY_GAME_VS_ENGINE = "game_vs_engine"
+    }
 
     @SuppressLint("NotifyDataSetChanged")
     override fun onCreate(savedInstanceState: Bundle?) {
-        StockfishEngine.initialize(this)
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate called")
+        StockfishEngine.initialize(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding!!.root)
 
-        // Initialize navigation drawer
+        if (savedInstanceState != null) {
+            currentIndex = savedInstanceState.getInt(KEY_CURRENT_INDEX, 0)
+            cutIndex = savedInstanceState.getInt(KEY_CUT_INDEX, 0)
+            moveEngine = savedInstanceState.getBoolean(KEY_MOVE_ENGINE, true)
+            gameVsEngine = savedInstanceState.getBoolean(KEY_GAME_VS_ENGINE, true)
+        }
+
         binding!!.menuButton.setOnClickListener {
             binding!!.drawerLayout.openDrawer(GravityCompat.START)
         }
@@ -70,15 +82,27 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         binding!!.navView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.play_chess -> {
+                    binding!!.recyclerMultiPv.visibility = View.INVISIBLE
+                    binding!!.multipvButtonsContainer.visibility = View.INVISIBLE
+                    StockfishEngine.stop()
+                    StockfishEngine.sendCommand("stop")
+                    arrowOverlay.clearAnalysisArrows()
                     clearHistory()
                     gameVsEngine = true
+                    isPaused = false
+                    binding!!.btnGoPause.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_pause, 0, 0, 0)
+                    arrowOverlay.clearHintArrow()
                     restartGame()
                     binding!!.drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
+
                 R.id.analyze_board -> {
+                    binding!!.recyclerMultiPv.visibility = View.VISIBLE
+                    binding!!.multipvButtonsContainer.visibility = View.VISIBLE
                     clearHistory()
                     gameVsEngine = false
+                    updateButtonVisibility()
                     hideHighlights()
                     moveCache.clear()
                     gameState = GameState(Player.White, Board.initial())
@@ -86,10 +110,9 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
                     binding!!.drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
-                R.id.analyze_game -> {
+                R.id.import_game_pgn -> {
                     gameVsEngine = false
                     binding!!.drawerLayout.closeDrawer(GravityCompat.START)
-
                     val dialog = PgnImportDialogFragment.newInstance()
                     dialog.setPgnImportListener(this)
                     dialog.show(supportFragmentManager, "PgnImportDialog")
@@ -104,8 +127,7 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             }
         }
 
-        // Initialize move history RecyclerView
-        adapter = MoveAdapter(0)
+        adapter = MoveAdapter(currentIndex)
         binding!!.moveHistoryList.layoutManager = LinearLayoutManager(
             this,
             LinearLayoutManager.HORIZONTAL,
@@ -113,7 +135,6 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         )
         binding!!.moveHistoryList.adapter = adapter
 
-        // Previous and next move buttons
         binding!!.btnPrevMove.setOnClickListener {
             if (currentIndex > 0) {
                 currentIndex--
@@ -132,29 +153,25 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             }
         }
 
-        // Analyze button
         binding!!.btnGoAnalyse.setOnClickListener {
             val analysePosition = gameState.gameHistoryFENs
             lifecycleScope.launch {
                 val analysis = GameAnalysis(analysePosition, this@MainActivity)
                 analysis.analyzeGame()
                 moveAnalyses.clear()
+                moveAnalyses.add(null)
                 moveAnalyses.addAll(analysis.getMoveAnalyses())
                 updateMoveHistory()
+                updateLastMoveArrow()
             }
         }
 
-        updateSelection()
-
-        // Initialize multi-PV RecyclerView
         multiPvAdapter = MultiPvAdapter()
         binding!!.recyclerMultiPv.layoutManager = LinearLayoutManager(this)
         binding!!.recyclerMultiPv.adapter = multiPvAdapter
 
-        StockfishEngine.initialize(this)
         drawBoard(gameState.board)
 
-        // Add arrow overlay
         arrowOverlay = ArrowOverlayView(this).apply {
             isClickable = false
             isFocusable = false
@@ -169,12 +186,11 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             )
         )
 
-        // Collect Stockfish engine info
         lifecycleScope.launch {
             StockfishEngine.infoFlow.collectLatest { infoList ->
                 if (!gameVsEngine) {
                     multiPvAdapter.updateData(infoList)
-                    arrowOverlay.clearArrows()
+                    arrowOverlay.clearAnalysisArrows()
                     val cellSize = binding!!.chessboardContainer.width / 8f
                     val sortedInfoList = if (gameState.currentPlayer == Player.White) {
                         infoList.sortedByDescending { (it.score as? Float) ?: 0f }
@@ -192,14 +208,14 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
                             val startY = (8 - startRank) * cellSize + cellSize / 2
                             val endX = (endFile - 1) * cellSize + cellSize / 2
                             val endY = (8 - endRank) * cellSize + cellSize / 2
-                            arrowOverlay.addArrow(startX, startY, endX, endY, index + 1)
+                            arrowOverlay.addAnalysisArrow(startX, startY, endX, endY, index + 1)
                         }
                     }
+                    updateLastMoveArrow()
                 }
             }
         }
 
-        // Collect evaluation updates
         lifecycleScope.launch {
             StockfishEngine.evalFlow.collectLatest { eval ->
                 if (!gameVsEngine) {
@@ -210,18 +226,151 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
                 }
             }
         }
+
+        lifecycleScope.launch {
+            DataStoreManager.loadEngineSettings(this@MainActivity)
+            val savedGameState = DataStoreManager.loadGameState(this@MainActivity)
+            if (savedGameState != null) {
+                gameState = savedGameState
+                currentIndex = gameState.gameHistory.lastIndex
+                drawBoard(gameState.board)
+                if (gameVsEngine && FenUtils.currentPlayer(gameState.stateString) != Player.White) {
+                    makeAnOpponentMove()
+                }
+            } else {
+                drawBoard(gameState.board)
+                updateMoveHistory()
+            }
+        }
+
+        binding!!.btnHint.setOnClickListener {
+            if (gameVsEngine) {
+                lifecycleScope.launch {
+                    try {
+                        val (bestMove, _) = StockfishEngine.getBestMoveAndEval(gameState.gameHistoryFENs.last())
+                        if (bestMove.length >= 4) {
+                            val (startFile, startRank) = convertChessCoordToIndex(bestMove.substring(0, 2))
+                            val (endFile, endRank) = convertChessCoordToIndex(bestMove.substring(2, 4))
+                            val cellSize = binding!!.chessboardContainer.width / 8f
+                            val startX = (startFile - 1) * cellSize + cellSize / 2
+                            val startY = (8 - startRank) * cellSize + cellSize / 2
+                            val endX = (endFile - 1) * cellSize + cellSize / 2
+                            val endY = (8 - endRank) * cellSize + cellSize / 2
+                            arrowOverlay.addHintArrow(startX, startY, endX, endY)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
+
+        updateButtonVisibility()
+        updateMultiPvLabel()
+
+        binding!!.showHideAnalyse.setOnClickListener {
+            isAnalysisVisible = !isAnalysisVisible
+            if (isAnalysisVisible) {
+                binding!!.multipvButtonsContainer.visibility = View.VISIBLE
+                binding!!.recyclerMultiPv.visibility = View.VISIBLE
+                binding!!.evalBar.visibility = View.VISIBLE
+                binding!!.evalText.visibility = View.VISIBLE
+                binding!!.showHideAnalyse.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_eye, 0)
+                if (!isPaused) {
+                    StockfishEngine.analyzePosition(gameState.gameHistoryFENs.last())
+                }
+            } else {
+                binding!!.multipvButtonsContainer.visibility = View.INVISIBLE
+                binding!!.recyclerMultiPv.visibility = View.GONE
+                binding!!.evalBar.visibility = View.GONE
+                binding!!.evalText.visibility = View.GONE
+                binding!!.showHideAnalyse.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_off_visibility, 0)
+                StockfishEngine.sendCommand("stop")
+                StockfishEngine.stop()
+                arrowOverlay.clearAnalysisArrows()
+            }
+        }
+
+        binding!!.btnGoPause.setOnClickListener {
+            isPaused = !isPaused
+            if (isPaused) {
+                binding!!.btnGoPause.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_play, 0, 0, 0)
+                StockfishEngine.sendCommand("stop")
+                StockfishEngine.stop()
+            } else {
+                binding!!.btnGoPause.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_pause, 0, 0, 0)
+                if (isAnalysisVisible) {
+                    StockfishEngine.analyzePosition(gameState.gameHistoryFENs.last())
+                }
+            }
+        }
+
+        binding!!.btnIncreaseMultipv.setOnClickListener {
+            StockfishEngine.multiPv += 1
+            updateMultiPvLabel()
+            if (!isPaused && isAnalysisVisible) {
+                StockfishEngine.analyzePosition(gameState.gameHistoryFENs.last())
+            }
+        }
+
+        binding!!.btnDecreaseMultipv.setOnClickListener {
+            if (StockfishEngine.multiPv > 1) {
+                StockfishEngine.sendCommand("stop")
+                StockfishEngine.stop()
+
+                StockfishEngine.multiPv -= 1
+                updateMultiPvLabel()
+                if (!isPaused && isAnalysisVisible) {
+                    StockfishEngine.analyzePosition(gameState.gameHistoryFENs.last())
+                }
+            }
+        }
+    }
+
+    private fun updateMultiPvLabel() {
+        binding!!.multipvLabel.text = "MultiPV List (Number of lines: ${StockfishEngine.multiPv})"
+    }
+
+    private fun updateButtonVisibility() {
+        binding!!.btnHint.visibility = if (gameVsEngine) View.VISIBLE else View.GONE
+        binding!!.btnGoPause.visibility = if (!gameVsEngine) View.VISIBLE else View.GONE
+        if (gameVsEngine) {
+            arrowOverlay.clearHintArrow()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_CURRENT_INDEX, currentIndex)
+        outState.putInt(KEY_CUT_INDEX, cutIndex)
+        outState.putBoolean(KEY_MOVE_ENGINE, moveEngine)
+        outState.putBoolean(KEY_GAME_VS_ENGINE, gameVsEngine)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        lifecycleScope.launch {
+            DataStoreManager.saveEngineSettings(this@MainActivity)
+            DataStoreManager.saveGameState(this@MainActivity, gameState)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        StockfishEngine.close()
+        binding = null
     }
 
     override fun onPgnImported(pgnText: String) {
         val fens = PgnParser.parsePgnToFens(pgnText)
         val board = Board()
         board.setFromFen(fens.last())
-
         gameState = GameState(Player.White, board)
         drawBoard(board)
         gameState.gameHistoryFENs = fens.toMutableList()
         gameState.updateMoveHistoryFromFENs()
         updateMoveHistory()
+        updateLastMoveArrow()
     }
 
     private fun convertChessCoordToIndex(coord: String): Pair<Int, Int> {
@@ -236,23 +385,25 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         cutIndex = 0
         moveAnalyses.clear()
         updateMoveHistory()
+        arrowOverlay.clearMoveArrow()
     }
 
     private fun applyFen(gameHistory: String) {
         gameState.board = Board.initial(gameHistory)
         drawBoard(gameState.board)
+        updateLastMoveArrow()
     }
 
     private fun updateSelection() {
+        if (currentIndex >= gameState.gameHistoryFENs.size) {
+            currentIndex = gameState.gameHistoryFENs.lastIndex
+        }
+        if (currentIndex < 0) {
+            currentIndex = 0
+        }
         adapter.setSelectedIndex(currentIndex)
         binding!!.moveHistoryList.smoothScrollToPosition(currentIndex)
         applyFen(gameState.gameHistoryFENs[currentIndex])
-    }
-
-    override fun onDestroy() {
-        StockfishEngine.close()
-        binding = null
-        super.onDestroy()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -364,6 +515,7 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             } else {
                 handleMove(move)
                 updateMoveHistory()
+                updateLastMoveArrow()
                 if (!gameVsEngine) {
                     StockfishEngine.analyzePosition(gameState.stateString)
                 }
@@ -403,7 +555,7 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         if (!gameVsEngine) return
         lifecycleScope.launch {
             try {
-                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(gameState.stateString)
+                val (bestMove, eval) = StockfishEngine.getBestMoveAndEval(fen)
                 if (bestMove.length < 4) return@launch
                 val fromCol = bestMove[0] - 'a'
                 val fromRow = 8 - (bestMove[1] - '0')
@@ -432,8 +584,33 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             newPos?.setImageDrawable(oldPos?.drawable)
             oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
         }
+        arrowOverlay.clearHintArrow()
         if (gameState.isGameOver()) {
             showGameOver()
+        }
+        lifecycleScope.launch {
+            DataStoreManager.saveGameState(this@MainActivity, gameState)
+        }
+    }
+
+    private fun updateLastMoveArrow() {
+        arrowOverlay.clearMoveArrow()
+        if (currentIndex > 0 && currentIndex < gameState.gameHistory.size) {
+            val moveStr = gameState.gameHistory[currentIndex]
+            val parts = moveStr.split("-")
+            if (parts.size == 2) {
+                val start = parts[0]
+                val end = parts[1]
+                val (startFile, startRank) = convertChessCoordToIndex(start)
+                val (endFile, endRank) = convertChessCoordToIndex(end)
+                val cellSize = binding!!.chessboardContainer.width / 8f
+                val startX = (startFile - 1) * cellSize + cellSize / 2
+                val startY = (8 - startRank) * cellSize + cellSize / 2
+                val endX = (endFile - 1) * cellSize + cellSize / 2
+                val endY = (8 - endRank) * cellSize + cellSize / 2
+                val category = moveAnalyses.getOrNull(currentIndex)?.category
+                arrowOverlay.addMoveArrow(startX, startY, endX, endY, category)
+            }
         }
     }
 
@@ -451,20 +628,18 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             cutIndex = 0
         }
         val moves = gameState.gameHistory
-        // Align analyses with moves: index 0 (starting position) gets null, index 1 gets moveAnalyses[0], etc.
         val paddedAnalyses = mutableListOf<MoveAnalysis?>()
-        paddedAnalyses.add(null) // Starting position has no analysis
-        paddedAnalyses.addAll(moveAnalyses) // Add analysis for actual moves
-        // If moves list is longer than paddedAnalyses (e.g., new moves after analysis), pad with nulls
+        paddedAnalyses.add(null) // For initial position
+        paddedAnalyses.addAll(moveAnalyses)
         while (paddedAnalyses.size < moves.size) {
             paddedAnalyses.add(null)
         }
-        // If paddedAnalyses is longer (e.g., after cutting history), trim it
         if (paddedAnalyses.size > moves.size) {
             paddedAnalyses.subList(moves.size, paddedAnalyses.size).clear()
         }
         adapter.updateMoves(moves, paddedAnalyses, currentIndex)
         binding!!.moveHistoryList.scrollToPosition(currentIndex)
+        updateLastMoveArrow()
     }
 
     fun updateEvaluation(eval: Any?) {
@@ -493,6 +668,7 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             oldPos?.setImageDrawable(loadSourceDrawable(R.drawable.ic_blank))
             val promMove = PawnPromotion(from, to, selectedPiece)
             handleMove(promMove)
+            updateLastMoveArrow()
         }
         pawnPromotionsMenu.show()
     }
@@ -560,7 +736,16 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         })
         gameOverMenu.setAnalyze(object : GameOverMenu.AnalyzeClick {
             override fun onAnalyzeClick() {
-                TODO("Not yet implemented")
+                val analysePosition = gameState.gameHistoryFENs
+                lifecycleScope.launch {
+                    val analysis = GameAnalysis(analysePosition, this@MainActivity)
+                    analysis.analyzeGame()
+                    moveAnalyses.clear()
+                    moveAnalyses.add(null)
+                    moveAnalyses.addAll(analysis.getMoveAnalyses())
+                    updateMoveHistory()
+                    updateLastMoveArrow()
+                }
             }
         })
     }
@@ -617,7 +802,7 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
         }
         StockfishEngine.applyEngineSettings()
         var startPosition = startPos
-        if (!FenUtils.isValidFEN(startPos)) {
+        if (!FenUtils.isValidFEN(startPos) || startPosition == "") {
             startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         }
         val board: Board = Board.initial(startPosition)
@@ -627,21 +812,13 @@ class MainActivity : AppCompatActivity(), PgnImportDialogFragment.PgnImportListe
             board
         )
         drawBoard(gameState.board)
+        gameVsEngine = true
+        moveEngine = true
+        updateButtonVisibility()
         if (FenUtils.isValidFEN(startPosition) && FenUtils.currentPlayer(startPosition) != player) {
             lifecycleScope.launch {
                 makeAnOpponentMove(startPosition)
             }
-        }
-    }
-
-    private fun openAnalyzeGameWindow() {
-        val analysePosition = gameState.gameHistoryFENs
-        lifecycleScope.launch {
-            val analysis = GameAnalysis(analysePosition, this@MainActivity)
-            analysis.analyzeGame()
-            moveAnalyses.clear()
-            moveAnalyses.addAll(analysis.getMoveAnalyses())
-            updateMoveHistory()
         }
     }
 

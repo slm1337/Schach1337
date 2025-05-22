@@ -7,7 +7,6 @@ import com.example.schach1337.logic.Player
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
@@ -113,7 +112,7 @@ object StockfishEngine {
     suspend fun getBestMoveAndEval(fen: String): Pair<String, Any?> = withContext(Dispatchers.IO) {
         sendCommand("stop")
         stop()
-        setUciOption("MultiPV","1")
+        setUciOption("MultiPV", "1")
         sendCommand("position fen $fen")
 
         when {
@@ -124,29 +123,35 @@ object StockfishEngine {
 
         var bestMove = "unknown"
         var eval: Any? = null
+        val targetDepth = depth ?: 10
 
         try {
             var line: String?
             while (reader?.readLine().also { line = it } != null) {
+                println(line)
                 if (line!!.startsWith("info")) {
-                    val parts = line!!.split(" ")
+                    val parts = line.split(" ")
+                    var currentDepth: Int? = null
                     for (i in parts.indices) {
-                        if (parts[i] == "score") {
-                            when (parts[i + 1]) {
-                                "cp" -> {
-                                    eval = parts[i + 2].toFloat() / 100f
+                        when (parts[i]) {
+                            "depth" -> currentDepth = parts[i + 1].toIntOrNull()
+                            "score" -> {
+                                when (parts[i + 1]) {
+                                    "cp" -> eval = parts[i + 2].toFloatOrNull()?.div(100f)
+                                    "mate" -> eval = "mate ${parts[i + 2]}"
                                 }
-                                "mate" -> {
-                                    eval = "mate ${parts[i + 2]}"
+                            }
+                            "pv" -> {
+                                if (i + 1 < parts.size) {
+                                    bestMove = parts[i + 1]
                                 }
                             }
                         }
                     }
-                }
 
-                if (line!!.startsWith("bestmove")) {
-                    bestMove = line!!.split(" ")[1]
-                    break
+                    if (currentDepth != null && currentDepth >= targetDepth) {
+                        break
+                    }
                 }
             }
         } catch (e: IOException) {
@@ -158,7 +163,7 @@ object StockfishEngine {
         eval = when {
             eval is Float && currentPlayer == Player.Black -> -eval
             eval is String && eval.startsWith("mate") -> {
-                val mateValue = eval.split(" ")[1].toInt()
+                val mateValue = eval.split(" ")[1].toIntOrNull() ?: 0
                 if (currentPlayer == Player.Black) "mate -$mateValue" else "mate $mateValue"
             }
             else -> eval
@@ -170,6 +175,7 @@ object StockfishEngine {
     fun analyzePosition(fen: String) {
         currentJob?.cancel()
         sendCommand("stop")
+        sendCommand("setoption name MultiPV value $multiPv")
 
         CoroutineScope(Dispatchers.IO).launch {
             _infoFlow.emit(emptyList())
@@ -178,9 +184,8 @@ object StockfishEngine {
         currentJob = CoroutineScope(Dispatchers.IO).launch {
             _infoFlow.emit(emptyList())
             sendCommand("position fen $fen")
-            FEN = fen;
+            FEN = fen
 
-            //sendCommand(if (depth != null) "go depth $depth" else "go movetime ${searchTime ?: 1000}")
             sendCommand("go infinite")
 
             val results = mutableMapOf<Int, MultipvInfo>()
@@ -191,54 +196,58 @@ object StockfishEngine {
                 while (isActive && reader?.readLine().also { line = it } != null) {
                     println(line)
                     val l = line ?: continue
-                        if (l.startsWith("info") && l.contains("seldepth")) {
-                            _infoFlow.emit(emptyList())
-                            val parts = l.split(" ")
-                            var multipv = 1
-                            var local_depth = -1
-                            var score: Any? = null
-                            val pv = mutableListOf<String>()
+                    if (l.startsWith("info") && l.contains("seldepth")) {
+                        val parts = l.split(" ")
+                        var multipv = 1
+                        var local_depth = -1
+                        var score: Any? = null
+                        val pv = mutableListOf<String>()
 
-                            for (i in parts.indices) {
-                                when (parts[i]) {
-                                    "depth" -> local_depth = parts.getOrNull(i + 1)?.toIntOrNull() ?: -1
-                                    "multipv" -> multipv = parts.getOrNull(i + 1)?.toIntOrNull() ?: 1
-                                    "score" -> {
-                                        when (parts.getOrNull(i + 1)) {
-                                            "cp" -> {
-                                                val cp = parts.getOrNull(i + 2)?.toFloatOrNull()
-                                                if (cp != null) score = cp / 100f
-                                            }
-                                            "mate" -> {
-                                                val mate = parts.getOrNull(i + 2)?.toIntOrNull()
-                                                if (mate != null) score = "mate $mate"
-                                            }
+                        for (i in parts.indices) {
+                            when (parts[i]) {
+                                "depth" -> local_depth = parts.getOrNull(i + 1)?.toIntOrNull() ?: -1
+                                "multipv" -> multipv = parts.getOrNull(i + 1)?.toIntOrNull() ?: 1
+                                "score" -> {
+                                    when (parts.getOrNull(i + 1)) {
+                                        "cp" -> {
+                                            val cp = parts.getOrNull(i + 2)?.toFloatOrNull()
+                                            if (cp != null) score = cp / 100f
+                                        }
+                                        "mate" -> {
+                                            val mate = parts.getOrNull(i + 2)?.toIntOrNull()
+                                            if (mate != null) score = "mate $mate"
                                         }
                                     }
-                                    "pv" -> {
-                                        pv.addAll(parts.drop(i + 1))
-                                        break
-                                    }
                                 }
-                            }
-
-                            score = when {
-                                score is Float && currentPlayer == Player.Black -> -(score as Float)
-                                score is String && (score as String).startsWith("mate") -> {
-                                    val mateVal = score.split(" ")[1].toInt()
-                                    if (currentPlayer == Player.Black) "mate -$mateVal" else score
+                                "pv" -> {
+                                    pv.addAll(parts.drop(i + 1))
+                                    break
                                 }
-                                else -> score
-                            }
-
-                            if (local_depth >= 0 && pv.isNotEmpty()) {
-                                    results[multipv] = MultipvInfo(FEN, local_depth, score, pv, pv.first())
-                                    _infoFlow.emit(results.values.toList())
-                                    if (multipv == 1 && score is Float) {
-                                        _evalFlow.emit(score)
-                                    }
                             }
                         }
+
+                        score = when {
+                            score is Float && currentPlayer == Player.Black -> -(score)
+                            score is String && (score).startsWith("mate") -> {
+                                val mateVal = score.split(" ")[1].toInt()
+                                if (currentPlayer == Player.Black) "mate -$mateVal" else score
+                            }
+                            else -> score
+                        }
+
+                        if (local_depth >= 0 && pv.isNotEmpty()) {
+                            results[multipv] = MultipvInfo(FEN, local_depth, score, pv, pv.first())
+                            results.keys.filter { it > multiPv }.forEach { results.remove(it) }
+                            val filteredResults = results.entries
+                                .filter { it.key <= multiPv }
+                                .sortedBy { it.key }
+                                .map { it.value }
+                            _infoFlow.emit(filteredResults)
+                            if (multipv == 1 && score is Float) {
+                                _evalFlow.emit(score)
+                            }
+                        }
+                    }
                 }
             } catch (e: IOException) {
                 e.printStackTrace()

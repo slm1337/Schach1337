@@ -1,7 +1,7 @@
 package com.example.schach1337
 
-import android.content.Intent
 import android.content.Context
+import android.content.Intent
 import com.example.schach1337.logic.FenUtils
 import com.example.schach1337.logic.Player
 import kotlin.math.exp
@@ -20,17 +20,20 @@ class GameAnalysis(
         moveAnalyses.clear()
 
         for (moveIndex in 1 until fenHistory.size) {
+
             val fenBefore = fenHistory[moveIndex - 1]
+            println(fenBefore)
             val fenAfter = fenHistory[moveIndex]
 
             val (bestMove, evalBefore) = StockfishEngine.getBestMoveAndEval(fenBefore)
             val (_, evalAfter) = StockfishEngine.getBestMoveAndEval(fenAfter)
 
-            val move = FenUtils.getMoveFromFENs(fenBefore, fenAfter)!!
+            val move = FenUtils.getMoveFromFENs(fenBefore, fenAfter)
+                ?: continue
 
             val category = classifyMove(evalBefore, evalAfter)
 
-            val moveNumber = (moveIndex + 1) / 2
+            val moveNumber = (moveIndex + 1) / 2 + if (moveIndex % 2 == 0) 1 else 0
 
             val analysis = MoveAnalysis(
                 moveNumber = moveNumber,
@@ -54,9 +57,12 @@ class GameAnalysis(
         evalBefore: Any?,
         evalAfter: Any?
     ): MoveCategory {
+        if (evalBefore == null && evalAfter is Float) {
+            return if (kotlin.math.abs(evalAfter) < 0.1f) MoveCategory.BEST else MoveCategory.GOOD
+        }
+
         if (evalBefore is Float && evalAfter is Float) {
             val evalDiff = kotlin.math.abs(evalBefore - evalAfter)
-
             return when {
                 evalDiff < 0.1f -> MoveCategory.BEST
                 evalDiff < inaccuracyThreshold -> MoveCategory.GOOD
@@ -137,6 +143,12 @@ class GameAnalysis(
                     val accuracy = calculateAccuracy(winPercentBefore, winPercentAfter)
                     whiteAccuracies.add(accuracy)
                 }
+                move.evalBefore == null && move.evalAfter is Float -> {
+                    val winPercentBefore = calculateWinPercent(0f, isWhite = true)
+                    val winPercentAfter = calculateWinPercent(move.evalAfter, isWhite = true)
+                    val accuracy = calculateAccuracy(winPercentBefore, winPercentAfter)
+                    whiteAccuracies.add(accuracy)
+                }
                 move.evalAfter is String && move.evalAfter.startsWith("mate -") -> {
                     whiteAccuracies.add(0f)
                 }
@@ -150,6 +162,12 @@ class GameAnalysis(
             when {
                 move.evalBefore is Float && move.evalAfter is Float -> {
                     val winPercentBefore = calculateWinPercent(move.evalBefore, isWhite = false)
+                    val winPercentAfter = calculateWinPercent(move.evalAfter, isWhite = false)
+                    val accuracy = calculateAccuracy(winPercentBefore, winPercentAfter)
+                    blackAccuracies.add(accuracy)
+                }
+                move.evalBefore == null && move.evalAfter is Float -> {
+                    val winPercentBefore = calculateWinPercent(0f, isWhite = false)
                     val winPercentAfter = calculateWinPercent(move.evalAfter, isWhite = false)
                     val accuracy = calculateAccuracy(winPercentBefore, winPercentAfter)
                     blackAccuracies.add(accuracy)
@@ -197,7 +215,7 @@ class GameAnalysis(
             putExtra("whiteAccuracy", analysisData.whiteAccuracy)
             putExtra("blackAccuracy", analysisData.blackAccuracy)
         }
-
+        printReport()
         context.startActivity(intent)
     }
 
@@ -243,7 +261,7 @@ class GameAnalysis(
     private fun printMove(analysis: MoveAnalysis) {
         val evalBeforeStr = when (analysis.evalBefore) {
             is Float -> String.format("%.2f", analysis.evalBefore)
-            else -> analysis.evalBefore.toString()
+            else -> analysis.evalBefore?.toString() ?: "0.00"
         }
         val evalAfterStr = when (analysis.evalAfter) {
             is Float -> String.format("%.2f", analysis.evalAfter)

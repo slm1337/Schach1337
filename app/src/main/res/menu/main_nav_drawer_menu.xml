@@ -9,8 +9,8 @@
             android:title="Board for analyze">
         </item>
 
-        <item android:id="@+id/analyze_game"
-            android:title="Game analysis">
+        <item android:id="@+id/import_game_pgn"
+            android:title="Import game with PGN">
         </item>
 
         <item android:id="@+id/settings"

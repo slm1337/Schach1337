@@ -45,23 +45,29 @@ class SettingsActivity : AppCompatActivity() {
         editSyzygyProbeLimit = findViewById(R.id.edit_syzygy_probe_limit)
         buttonClearHash = findViewById(R.id.button_clear_hash)
 
-        switchEloSkill.isChecked = false // Default to Skill
-        editSkillElo.setText("20") // Default Skill level: 20
-        switchDepthTime.isChecked = true // Default to Depth
-        editDepthTime.setText("10") // Default Depth: 10
-        editThreads.setText("1") // Default Threads: 1
-        editHash.setText("16") // Default Hash: 16
-        editMoveOverhead.setText("10") // Default Move Overhead: 10
-        editNodestime.setText("0") // Default nodestime: 0
-        editSyzygyProbeDepth.setText("1") // Default SyzygyProbeDepth: 1
-        checkboxSyzygy50.isChecked = true // Default Syzygy50MoveRule: true
-        editSyzygyProbeLimit.setText("0") // Default SyzygyProbeLimit: 0
+        switchEloSkill.isChecked = StockfishEngine.skillElo != null
+        editSkillElo.setText(
+            if (StockfishEngine.skillElo != null) StockfishEngine.skillElo.toString()
+            else StockfishEngine.skillLevel?.toString() ?: "20"
+        )
+        switchDepthTime.isChecked = StockfishEngine.depth != null
+        editDepthTime.setText(
+            if (StockfishEngine.depth != null) StockfishEngine.depth.toString()
+            else StockfishEngine.searchTime?.toString() ?: "500"
+        )
+        editThreads.setText(StockfishEngine.numThreads.toString())
+        editHash.setText(StockfishEngine.hash.toString())
+        editMoveOverhead.setText(StockfishEngine.moveOverhead.toString())
+        editNodestime.setText(StockfishEngine.nodesTime.toString())
+        editSyzygyProbeDepth.setText(StockfishEngine.syzygyProbeDepth.toString())
+        checkboxSyzygy50.isChecked = StockfishEngine.syzygy50MoveRule
+        editSyzygyProbeLimit.setText(StockfishEngine.syzygyProbeLimit.toString())
 
         val numaPolicies = arrayOf("none", "system", "auto", "hardware")
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, numaPolicies)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerNumaPolicy.adapter = adapter
-        spinnerNumaPolicy.setSelection(numaPolicies.indexOf("auto"))
+        spinnerNumaPolicy.setSelection(numaPolicies.indexOf(StockfishEngine.numaPolicy))
 
         setupListeners()
     }
@@ -70,18 +76,18 @@ class SettingsActivity : AppCompatActivity() {
         buttonClose.setOnClickListener {
             lifecycleScope.launch {
                 applySettings()
+                DataStoreManager.saveEngineSettings(this@SettingsActivity)
             }
-
             finish()
         }
 
-        editSkillElo.hint = "Skill (0-20)"
+        editSkillElo.hint = if (switchEloSkill.isChecked) "Elo (1320-3190)" else "Skill (0-20)"
         switchEloSkill.setOnCheckedChangeListener { _, isChecked ->
             editSkillElo.hint = if (isChecked) "Elo (1320-3190)" else "Skill (0-20)"
             validateSkillElo()
         }
 
-        editDepthTime.hint = "Depth (≥1)"
+        editDepthTime.hint = if (switchDepthTime.isChecked) "Depth (≥1)" else "Time (≥500 ms)"
         switchDepthTime.setOnCheckedChangeListener { _, isChecked ->
             editDepthTime.hint = if (isChecked) "Depth (≥1)" else "Time (≥500 ms)"
             validateDepthTime()

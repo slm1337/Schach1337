@@ -104,16 +104,68 @@
             />
 
 
+        <LinearLayout
+            android:id="@+id/multipv_buttons_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="4dp"
+            android:background="#FFFFFF"
+            app:layout_constraintBottom_toTopOf="@+id/recyclerMultiPv"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/chessboard_container">
+
+            <TextView
+                android:id="@+id/multipv_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MultiPV List (Number of lines: 1)"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btn_increase_multipv"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:text="+"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:padding="0dp"
+                android:gravity="center"
+                android:background="@drawable/round_blue_button"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btn_decrease_multipv"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:text="-"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:padding="0dp"
+                android:gravity="center"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/round_blue_button" />
+
+        </LinearLayout>
+
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerMultiPv"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="vertical"
-
             app:layout_constraintBottom_toTopOf="@+id/below_buttons"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/chessboard_container" />
+            app:layout_constraintTop_toBottomOf="@+id/multipv_buttons_container"
+            />
 
         <LinearLayout
             android:id="@+id/below_buttons"
@@ -134,6 +186,15 @@
                 android:layout_marginStart="10dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:drawableEnd="@drawable/ic_search_insights"
+                />
+
+            <Button
+                android:id="@+id/show_hide_analyse"
+                android:layout_width="70dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="10dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:drawableEnd="@drawable/ic_off_visibility"
                 />
 
             <Button
@@ -167,10 +228,8 @@
                 android:layout_width="70dp"
                 android:layout_height="30dp"
                 android:layout_margin="10dp"
-                android:visibility="gone"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:drawableLeft="@drawable/ic_play" />
-
+                android:drawableLeft="@drawable/ic_pause" />
         </LinearLayout>
 
 

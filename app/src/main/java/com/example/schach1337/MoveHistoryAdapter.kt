@@ -27,26 +27,26 @@ class MoveAdapter(
 
     override fun onBindViewHolder(holder: MoveViewHolder, position: Int) {
         holder.textView.text = moves[position]
-        // Apply yellow background for selected move
+
         holder.textView.setBackgroundColor(
             if (position == selectedIndex) Color.YELLOW else Color.TRANSPARENT
         )
-        // Apply border based on MoveCategory
-        val analysis = analyses.getOrNull(position)
+
+        val analysis = analyses.getOrNull(position + 1)
         val borderDrawableId = when (analysis?.category) {
             MoveCategory.BEST -> R.drawable.best_border
             MoveCategory.GOOD -> R.drawable.good_border
             MoveCategory.INACCURACY -> R.drawable.inaccuracy_border
             MoveCategory.MISTAKE -> R.drawable.mistake_border
             MoveCategory.BLUNDER -> R.drawable.blunder_border
-            else -> 0 // No border if no analysis
+            else -> 0
         }
         holder.textView.background = if (borderDrawableId != 0) {
             ContextCompat.getDrawable(holder.textView.context, borderDrawableId)
         } else {
             null
         }
-        // Ensure yellow background is visible if selected
+
         if (position == selectedIndex) {
             holder.textView.setBackgroundColor(Color.YELLOW)
         }
@@ -60,8 +60,6 @@ class MoveAdapter(
         if (oldIndex != -1) notifyItemChanged(oldIndex)
         notifyItemChanged(selectedIndex)
     }
-
-    fun getSelectedIndex(): Int = selectedIndex
 
     fun updateMoves(newMoves: MutableList<String>, newAnalyses: MutableList<MoveAnalysis?>, newSelectedIndex: Int) {
         moves.clear()
